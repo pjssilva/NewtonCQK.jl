@@ -1,0 +1,13 @@
+name = "NewtonCQK"
+uuid = "3a5b082c-bedf-4bf1-a636-adab2d29e4ce"
+authors = ["Paulo J. S. Silva <pjssilva@gmail.com>", "Leonardo D. Secchin <leonardo.secchin@ufes.br>"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
