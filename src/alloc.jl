@@ -5,7 +5,7 @@
 abstract type AbstractChunk end
 
 mutable struct FixedChunk <: AbstractChunk
-    active::Memory{UInt}    # non-fixed indexes
+    active::Vector{UInt}    # non-fixed indexes
     start::UInt             # start position in active
     final::UInt             # final position in active
     ystart::UInt            # start position in y
@@ -13,7 +13,7 @@ mutable struct FixedChunk <: AbstractChunk
 end
 
 function FixedChunk(s, f)
-    return FixedChunk(Memory{UInt}(undef, f - s + 1), 0, 0, UInt(s), UInt(f))
+    return FixedChunk(Vector{UInt}(undef, f - s + 1), 0, 0, UInt(s), UInt(f))
 end
 
 mutable struct DynamicChunk <: AbstractChunk

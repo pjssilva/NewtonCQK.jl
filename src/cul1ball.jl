@@ -14,11 +14,7 @@ CUDA version of `l1ball_proj!`. `sol` and `x` must be `CuVector`s. The
 projection is returned as the `CuVector` `sol`.
 """
 function cul1ball_proj!(
-    sol::CuVector{T},
-    y::CuVector{T};
-    r=one(T),
-    maxiters=100,
-    x0::CuVector{T}=CuVector{T}[]
+    sol::CuVector{T}, y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}[]
 ) where {T<:AbstractFloat}
     absy = @~ abs.(y)
     if sum(absy) <= r
@@ -45,10 +41,7 @@ end
 replaces `y` by the projection.
 """
 function cul1ball_proj!(
-    y::CuVector{T};
-    r=one(T),
-    maxiters=100,
-    x0::CuVector{T}=CuVector{T}[]
+    y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}[]
 ) where {T<:AbstractFloat}
     return cul1ball_proj!(y, y; r=r, maxiters=maxiters, x0=x0)
 end
@@ -60,10 +53,7 @@ CUDA version of `l1ball_proj`. `y` must be a `CuVector`. The projection
 `sol` is also a `CuVector`.
 """
 function cul1ball_proj(
-    y::CuVector{T};
-    r=one(T),
-    maxiters=100,
-    x0::CuVector{T}=CuVector{T}[]
+    y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}[]
 ) where {T<:AbstractFloat}
     sol = similar(y)
     iter = cul1ball_proj!(sol, y; r=r, maxiters=maxiters, x0=x0)

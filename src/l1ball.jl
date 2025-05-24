@@ -81,7 +81,7 @@ function l1ball_proj!(
 ) where {T<:AbstractFloat,C<:AbstractChunk}
     # Asserts that the user is not doing aliasing between input and output
     @assert sol !== y "sol and y vectors cannot be the same"
-    
+
     if isempty(chunks)
         chunks = initialize_chunks(DynamicChunk, length(y); numthreads=numthreads)
     else

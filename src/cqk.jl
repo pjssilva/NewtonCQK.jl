@@ -16,7 +16,9 @@ struct CQKProblem{T<:AbstractFloat,V<:AbstractVector{T}}
 end
 
 # Initialize λ when x0 is not provided
-function cqk_init(P::CQKProblem{T,V}, chunk::FixedChunk) where {T<:AbstractFloat, V<:Vector{T}}
+function cqk_init(
+    P::CQKProblem{T,V}, chunk::FixedChunk
+) where {T<:AbstractFloat,V<:Vector{T}}
     s = zero(T)
     q = zero(T)
     k = 0
@@ -45,7 +47,7 @@ end
 # Initialize λ when x0 is provided
 function cqk_init(
     P::CQKProblem{T,V}, x0::Vector{T}, chunk::FixedChunk
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     r_diff = zero(T)
     s = zero(T)
     q = zero(T)
@@ -89,7 +91,7 @@ end
 # Compute phi and phi'
 function cqk_phi_step(
     P::CQKProblem{T,V}, x::Vector{T}, λ::T, chunk::FixedChunk
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     phi = zero(T)
     deriv = zero(T)
     absphi = zero(T)
@@ -119,7 +121,7 @@ end
 
 @inline function cqk_phi(
     P::CQKProblem{T,V}, x::Vector{T}, λ::T, chunks::Vector{FixedChunk}
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     return let λ = λ
         altmapreduce(
             c -> cqk_phi_step(P, x, λ, c), .+, chunks; init=(zero(T), zero(T), zero(T))
@@ -129,7 +131,7 @@ end
 
 function breakpoint_to_the_right(
     P::CQKProblem{T,V}, λ::T, chunk::FixedChunk
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     closest_bkp = T(Inf)
     @inbounds for i in (chunk.start):(chunk.final)
         ii = chunk.active[i]
@@ -143,7 +145,7 @@ end
 
 function breakpoint_to_the_left(
     P::CQKProblem{T,V}, λ::T, chunk::FixedChunk
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     closest_bkp = T(-Inf)
     @inbounds for i in (chunk.start):(chunk.final)
         ii = chunk.active[i]
@@ -157,7 +159,7 @@ end
 
 @inline function closest_breakpoint(
     P::CQKProblem{T,V}, λ::T, phi_minus_r::T, chunks::Vector{FixedChunk}
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     if phi_minus_r < zero(T)
         return let λ = λ
             altmapreduce(c -> breakpoint_to_the_right(P, λ, c), min, chunks; init=(zero(T)))
@@ -183,7 +185,7 @@ end
 
 function fix_variables_l(
     P::CQKProblem{T,V}, x::Vector{T}, chunk::FixedChunk
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     k = chunk.start - 1
     r_diff = zero(T)
     @inbounds for i in (chunk.start):(chunk.final)
@@ -202,7 +204,7 @@ end
 
 function fix_variables_u(
     P::CQKProblem{T,V}, x::Vector{T}, chunk::FixedChunk
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     k = chunk.start - 1
     r_diff = zero(T)
     @inbounds for i in (chunk.start):(chunk.final)
@@ -221,7 +223,7 @@ end
 
 function cqk_solution_step(
     P::CQKProblem{T,V}, x::Vector{T}, λ::T, chunk::FixedChunk
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     @inbounds for i in (chunk.start):(chunk.final)
         ii = chunk.active[i]
         new_x = (P.b[ii] * λ + P.a[ii]) / P.d[ii]
@@ -239,7 +241,7 @@ end
 
 function cqk_newton(
     P::CQKProblem{T,V}, x0::Vector{T}, x::Vector{T}, chunks::Vector{FixedChunk}, maxiters
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     T0 = zero(T)
     lo_λ = T(-Inf)
     up_λ = T(Inf)
@@ -249,14 +251,10 @@ function cqk_newton(
 
     # λ initialization
     if isempty(x0)
-        s, q = altmapreduce(
-            c -> cqk_init(P, c), .+, chunks; init=(T0, T0)
-        )
+        s, q = altmapreduce(c -> cqk_init(P, c), .+, chunks; init=(T0, T0))
         λ = (local_r - s) / q
     else
-        s, q, r_aux = altmapreduce(
-            c -> cqk_init(P, x0, c), .+, chunks; init=(T0, T0, T0)
-        )
+        s, q, r_aux = altmapreduce(c -> cqk_init(P, x0, c), .+, chunks; init=(T0, T0, T0))
         λ = (local_r + r_aux - s) / q
     end
 
@@ -340,13 +338,9 @@ function cqk_newton(
 
         # Try to fix variables and update RHS for the next iteration
         if φ_minus_r > T0
-            local_r += altmapreduce(
-                c -> fix_variables_l(P, x, c), .+, chunks; init=(T0)
-            )
+            local_r += altmapreduce(c -> fix_variables_l(P, x, c), .+, chunks; init=(T0))
         else
-            local_r += altmapreduce(
-                c -> fix_variables_u(P, x, c), .+, chunks; init=(T0)
-            )
+            local_r += altmapreduce(c -> fix_variables_u(P, x, c), .+, chunks; init=(T0))
         end
         chunks = compress_chunks(chunks)
 
@@ -393,7 +387,7 @@ function cqk!(
     numthreads=Threads.nthreads(),
     chunks::Vector{FixedChunk}=FixedChunk[],
     x0::Vector{T}=T[]
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     if isempty(chunks)
         chunks = initialize_chunks(length(P.a); numthreads=numthreads)
     end
@@ -413,10 +407,8 @@ function cqk(
     numthreads=Threads.nthreads(),
     chunks::Vector{FixedChunk}=FixedChunk[],
     x0::Vector{T}=T[]
-) where {T<:AbstractFloat, V<:Vector{T}}
+) where {T<:AbstractFloat,V<:Vector{T}}
     sol = similar(P.a)
-    iter = cqk!(
-        sol, P; maxiters=maxiters, numthreads=numthreads, chunks=chunks, x0=x0
-    )
+    iter = cqk!(sol, P; maxiters=maxiters, numthreads=numthreads, chunks=chunks, x0=x0)
     return sol, iter
 end
