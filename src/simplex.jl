@@ -277,21 +277,10 @@ function simplex_newton(
     end
     chunks = compress_chunks(chunks)
 
-    # First iteration
-    iter = 1
-    δ = (φ - r) / φ′
-    old_λ = λ
-    λ -= δ
-    if (abs(δ) < eps(T)) || (old_λ == λ)
-        return λ, iter, true
-    end
-
-    # Subsequent iterations
+    # Newton loop
+    iter = 0
     solved = false
     while (iter < maxiters)
-        iter += 1
-        chunks = compress_chunks(chunks)
-        φ, φ′ = simplex_phi(y, λ, r, true, chunks)
         δ = (φ - r) / φ′
         old_λ = λ
         λ -= δ
@@ -300,6 +289,10 @@ function simplex_newton(
             solved = true
             break
         end
+        iter += 1
+        # compute φ and φ' for the next iteration
+        φ, φ′ = simplex_phi(y, λ, r, true, chunks)
+        chunks = compress_chunks(chunks)
     end
 
     return λ, iter, solved

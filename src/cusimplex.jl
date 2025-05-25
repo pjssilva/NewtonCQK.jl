@@ -38,10 +38,10 @@ function cusimplex_newton(
         end
     end
 
+    # Newton loop
     iter = 0
     solved = false
     while (iter < maxiters)
-        iter += 1
         φ, φ′ = let λ = λ
             mapreduce(y -> cusimplex_phi_step(y, λ), .+, y; init=(T0, T0))
         end
@@ -53,6 +53,7 @@ function cusimplex_newton(
             solved = true
             break
         end
+        iter += 1
     end
 
     return λ, iter, solved
