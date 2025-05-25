@@ -172,13 +172,12 @@ end
 end
 
 @inline function secant_step(
-    lo_λ::T, up_λ::T, lo_phi::T, up_phi::T, local_r::T
+    lo_λ::T, up_λ::T, lo_phi::T, up_phi::T
 ) where {T<:AbstractFloat}
-    λ = (lo_λ - (lo_phi + local_r) * (up_λ - lo_λ)) / (up_phi - lo_phi)
-    if λ > up_λ
-        λ = up_λ
-    elseif λ < lo_λ
-        λ = lo_λ
+    λ = (lo_λ - lo_phi * (up_λ - lo_λ)) / (up_phi - lo_phi)
+    # if the secant step fails, try the midpoint
+    if (λ >= up_λ) || (λ <= lo_λ)
+        λ = (up_λ + lo_λ)/T(2)
     end
     return λ
 end
@@ -221,24 +220,6 @@ function fix_variables_u(
     return r_diff
 end
 
-function cqk_solution_step(
-    P::CQKProblem{T,V}, x::Vector{T}, λ::T, chunk::FixedChunk
-) where {T<:AbstractFloat,V<:Vector{T}}
-    @inbounds for i in (chunk.start):(chunk.final)
-        ii = chunk.active[i]
-        new_x = (P.b[ii] * λ + P.a[ii]) / P.d[ii]
-        if new_x > P.l[ii]
-            if new_x < P.u[ii]
-                x[ii] = new_x
-            else
-                new_x = P.u[ii]
-            end
-        else
-            new_x = P.l[ii]
-        end
-    end
-end
-
 function cqk_newton(
     P::CQKProblem{T,V}, x0::Vector{T}, x::Vector{T}, chunks::Vector{FixedChunk}, maxiters
 ) where {T<:AbstractFloat,V<:Vector{T}}
@@ -247,15 +228,15 @@ function cqk_newton(
     up_λ = T(Inf)
     lo_φ = lo_λ
     up_φ = up_λ
-    local_r = P.r
+    r = P.r
 
     # λ initialization
     if isempty(x0)
         s, q = altmapreduce(c -> cqk_init(P, c), .+, chunks; init=(T0, T0))
-        λ = (local_r - s) / q
+        λ = (r - s) / q
     else
-        s, q, r_aux = altmapreduce(c -> cqk_init(P, x0, c), .+, chunks; init=(T0, T0, T0))
-        λ = (local_r + r_aux - s) / q
+        s, q, r_diff = altmapreduce(c -> cqk_init(P, x0, c), .+, chunks; init=(T0, T0, T0))
+        λ = (r + r_diff - s) / q
     end
 
     # q is Inf if data is inconsistent or an infeasibility was identified
@@ -263,16 +244,15 @@ function cqk_newton(
         return T0, 0, 1
     end
 
-    φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
-    φ_minus_r -= local_r
-    abs_φ += abs(local_r)
-
     flag = 3
 
     # Newton loop
     iter = 0
     while (iter < maxiters)
-        iter += 1
+        # Compute φ-r and φ'
+        φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
+        φ_minus_r -= r
+        abs_φ += abs(r)
 
         # Stop if φ-r ≈ 0
         if abs(φ_minus_r) < eps(T) * abs_φ
@@ -298,6 +278,8 @@ function cqk_newton(
             break
         end
 
+        iter += 1
+
         if φ′ > T0
             δ = φ_minus_r / φ′
             old_λ = λ
@@ -310,20 +292,8 @@ function cqk_newton(
             end
 
             if (λ >= up_λ) || (λ <= lo_λ)
-                old_λ = λ
-
                 # Newton step falls outside the bracket interval
-                λ = secant_step(lo_λ, up_λ, lo_φ, up_φ, local_r)
-
-                # Test if lo_λ or up_λ are the solutions
-                # Note that λ may changed, in which case the solution must be recomputed
-                if (λ == up_λ) || (λ == lo_λ)
-                    if (λ != old_λ)
-                        altforeach(c -> cqk_solution_step(P, x, λ, c), chunks)
-                    end
-                    flag = 0
-                    break
-                end
+                λ = secant_step(lo_λ, up_λ, lo_φ, up_φ)
             end
         else
             # φ′ = 0, so take the closest breakpoint to continue
@@ -338,16 +308,11 @@ function cqk_newton(
 
         # Try to fix variables and update RHS for the next iteration
         if φ_minus_r > T0
-            local_r += altmapreduce(c -> fix_variables_l(P, x, c), .+, chunks; init=(T0))
+            r += altmapreduce(c -> fix_variables_l(P, x, c), .+, chunks; init=(T0))
         else
-            local_r += altmapreduce(c -> fix_variables_u(P, x, c), .+, chunks; init=(T0))
+            r += altmapreduce(c -> fix_variables_u(P, x, c), .+, chunks; init=(T0))
         end
         chunks = compress_chunks(chunks)
-
-        # Compute φ-r and φ' for the next iteration
-        φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
-        φ_minus_r -= local_r
-        abs_φ += abs(local_r)
     end
 
     return λ, iter, flag

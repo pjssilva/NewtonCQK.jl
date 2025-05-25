@@ -74,6 +74,7 @@ end
 function cucqk_newton(
     P::CQKProblem{T,V}, x0::CuVector{T}, x::CuVector{T}, maxiters
 ) where {T<:AbstractFloat,V<:CuVector{T}}
+    T0 = zero(T)
     lo_λ = T(-Inf)
     up_λ = T(Inf)
     lo_φ = lo_λ
@@ -81,15 +82,15 @@ function cucqk_newton(
 
     # λ initialization
     if isempty(x0)
-        s, q = mapreduce(cucqk_init, .+, P.d, P.a, P.b, P.l, P.u; init=(zero(T), zero(T)))
+        s, q = mapreduce(cucqk_init, .+, P.d, P.a, P.b, P.l, P.u; init=(T0, T0))
         λ = (P.r - s) / q
     else
         s, q, r_aux = mapreduce(
-            cucqk_init, .+, P.d, P.a, P.b, P.l, P.u, x0; init=(zero(T), zero(T), zero(T))
+            cucqk_init, .+, P.d, P.a, P.b, P.l, P.u, x0; init=(T0, T0, T0)
         )
-        if q == zero(T)
+        if q == T0
             s, q = mapreduce(
-                cucqk_init, .+, P.d, P.a, P.b, P.l, P.u; init=(zero(T), zero(T))
+                cucqk_init, .+, P.d, P.a, P.b, P.l, P.u; init=(T0, T0)
             )
             λ = (P.r - s) / q
         else
@@ -99,7 +100,7 @@ function cucqk_newton(
 
     # q is Inf if data is inconsistent or an infeasibility was identified
     if isinf(q)
-        return zero(T), 0, 1
+        return T0, 0, 1
     end
 
     flag = 3
@@ -107,8 +108,7 @@ function cucqk_newton(
     # Newton loop
     iter = 0
     while (iter < maxiters)
-        iter += 1
-
+        # Compute φ-r and φ'
         φ_minus_r, φ′, abs_φ = let λ = λ
             mapreduce(
                 (d, a, b, l, u) -> cucqk_phi_step(d, a, b, l, u, λ),
@@ -118,7 +118,7 @@ function cucqk_newton(
                 P.b,
                 P.l,
                 P.u;
-                init=(zero(T), zero(T), zero(T))
+                init=(T0, T0, T0)
             )
         end
         φ_minus_r -= P.r
@@ -132,7 +132,7 @@ function cucqk_newton(
         # Update bracket interval
         # The current and previous φ are compatible here as no fixing variable is performed.
         # However, to maintain compatibility with CPU version, we store φ_minus_r.
-        if φ_minus_r < zero(T)
+        if φ_minus_r < T0
             lo_λ = λ
             lo_φ = φ_minus_r
         else
@@ -146,7 +146,9 @@ function cucqk_newton(
             break
         end
 
-        if φ′ > zero(T)
+        iter += 1
+
+        if φ′ > T0
             δ = φ_minus_r / φ′
             old_λ = λ
             λ -= δ
@@ -158,20 +160,11 @@ function cucqk_newton(
             end
 
             if (λ >= up_λ) || (λ <= lo_λ)
-                old_λ = λ
-
                 # Newton step falls outside the bracket interval
-                λ = secant_step(lo_λ, up_λ, lo_φ, up_φ, P.r)
-
-                # Test if lo_λ or up_λ are the solutions
-                # Note that λ may changed; the solution is computed outside this function, we just need to return λ
-                if (λ == up_λ) || (λ == lo_λ)
-                    flag = 0
-                    break
-                end
+                λ = secant_step(lo_λ, up_λ, lo_φ, up_φ)
             end
         else
-            if φ_minus_r < zero(T)
+            if φ_minus_r < T0
                 λ = let λ = λ
                     mapreduce(
                         (d, a, b, u) -> cubreakpoint_to_the_right(d, a, b, u, λ),
@@ -180,7 +173,7 @@ function cucqk_newton(
                         P.a,
                         P.b,
                         P.u;
-                        init=(zero(T))
+                        init=(T0)
                     )
                 end
             else
@@ -192,7 +185,7 @@ function cucqk_newton(
                         P.a,
                         P.b,
                         P.l;
-                        init=(zero(T))
+                        init=(T0)
                     )
                 end
             end
