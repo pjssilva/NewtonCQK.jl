@@ -1,4 +1,4 @@
-# NewtonCQN
+# NewtonCQK
 
 Implementation a semi-smooth Newton method for the Continuous Quadratic
 Knapsack problem, with specialized implemetations for projecting onto a
