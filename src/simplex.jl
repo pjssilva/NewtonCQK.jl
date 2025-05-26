@@ -278,7 +278,7 @@ function simplex_newton(
     chunks = compress_chunks(chunks)
 
     # Newton loop
-    iter = 0
+    iter = 1
     solved = false
     while (iter < maxiters)
         δ = (φ - r) / φ′
