@@ -119,9 +119,10 @@ function l1ball_proj(
     x0::Vector{T}=T[]
 ) where {T<:AbstractFloat,C<:AbstractChunk}
     sol = similar(y)
-    return l1ball_proj!(
+    iter = l1ball_proj!(
         sol, y; r=r, maxiters=maxiters, numthreads=numthreads, chunks=chunks, x0=x0
     )
+    return sol, iter
 end
 
 """
