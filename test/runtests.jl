@@ -3,6 +3,7 @@ using Test
 using Printf
 using ProximalOperators
 using Random: Random
+using LinearAlgebra
 
 function random_x(n)
     fillin = max(1, Int(floor(rand()^2 * n)))
@@ -45,6 +46,16 @@ end
         @test iter > 0
         @test Vector(soln) ≈ solp
     end
+end
+
+@testset "L1 Projection" begin
+
+    # Verify if first coordinate is used when estimating 1-norm
+    x =[8.750000000000004, 1.249999999999999, 1.2499999999999998, -1.2500000000000018, 1.2500000000000007, -1.2500000000000007, -1.2500000000000018, 1.2499999999999996] 
+    r = 9.354143466934856 
+    sol, iter = l1ball_proj(x, r=r)
+    @test norm(sol, 1) ≈ r
+
 end
 
 # TODO: There are a lot of tests to make. L1-Ball and general CQK, variations

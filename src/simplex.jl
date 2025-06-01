@@ -41,7 +41,7 @@ function simplex_init(
     k = addfirst!(chunk)
     @inbounds sumy = y[chunk.ystart]
     λ = r - sumy
-    total = Ref(zero(T))
+    total = Ref(sumy)
     @inbounds for i in (chunk.ystart + 1):(chunk.yfinal)
         yvali = fetch_accum!(total, y, i)
         new_x = yvali + λ
@@ -90,7 +90,7 @@ function simplex_init(
     k = 0
     sumy = zero(T)
     λ = r
-    total = Ref(zero(T))
+    total = Ref(sumy)
     @inbounds for i in (chunk.ystart):(chunk.yfinal)
         yvali = fetch_accum!(total, y, i)
         new_x = yvali + λ
