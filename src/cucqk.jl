@@ -207,7 +207,7 @@ end
 CUDA version of `cqk!`. `sol` and `x0` must be `CuVector`'s.
 """
 function cqk!(
-    sol::CuVector{T}, P::CQKProblem{T,V}; maxiters=100, x0::CuVector{T}=CuVector{T}[]
+    sol::CuVector{T}, P::CQKProblem{T,V}; maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat,V<:CuVector{T}}
     λ, iter, flag = cucqk_newton(P, x0, sol, maxiters)
 
@@ -233,7 +233,7 @@ end
 CUDA version of `cqk`. `x0` must be a `CuVector`.
 """
 function cqk(
-    P::CQKProblem{T,V}; maxiters=100, x0::CuVector{T}=CuVector{T}[]
+    P::CQKProblem{T,V}; maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat,V<:CuVector{T}}
     sol = similar(P.b)
     iter, flag = cucqk!(sol, P; maxiters=maxiters, x0=x0)

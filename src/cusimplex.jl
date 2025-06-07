@@ -13,9 +13,7 @@ function cusimplex_phi_step(y::T, λ::T) where {T<:AbstractFloat}
     return new_x >= zero(T) ? (new_x, one(T)) : (zero(T), zero(T))
 end
 
-function cusimplex_newton(
-    y::CuVector{T}, x0::CuVector{T}, r, maxiters
-) where {T<:AbstractFloat}
+function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
     T0 = zero(T)
 
     # initialize λ
@@ -60,14 +58,18 @@ function cusimplex_newton(
 end
 
 """
-    iter = cusimplex_proj!(sol, y; r=1.0, maxiters=100, x0=CuVector[])
+    iter = cusimplex_proj!(sol, y; r=1.0, maxiters=100, x0=CuVector(undef, 0))
 
 CUDA version of `simplex_proj!`. `sol`, `x` and `x0` must be `CuVector`s.
 """
 function cusimplex_proj!(
-    sol::CuVector{T}, y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}[]
+    sol::CuVector{T},
+    y::CuVector{T};
+    r=one(T),
+    maxiters=100,
+    x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
-    λ, iter, solved = cusimplex_newton(y, r, maxiters)
+    λ, iter, solved = cusimplex_newton(y, x0, r, maxiters)
 
     if solved
         @. sol = max(zero(T), y + λ)
@@ -78,24 +80,24 @@ function cusimplex_proj!(
 end
 
 """
-    iter = cusimplex_proj!(y; r=1.0, maxiters=100, x0=CuVector[])
+    iter = cusimplex_proj!(y; r=1.0, maxiters=100, x0=CuVector(undef, 0))
 
 A CUDA version of `simplex_proj!` that returns the solution in `y` itself.
 """
 function cusimplex_proj!(
-    y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}[]
+    y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
     return cusimplex_proj!(y, y; r=r, maxiters=maxiters, x0=x0)
 end
 
 """
-    sol, iter = cusimplex_proj(y; r=1.0, maxiters=100, x0=CuVector[])
+    sol, iter = cusimplex_proj(y; r=1.0, maxiters=100, x0=CuVector(undef, 0))
 
 CUDA version of `simplex_proj`. `y` and `x0` must be `CuVector`'s.
 The projection `sol` is also a `CuVector`.
 """
 function cusimplex_proj(
-    y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}[]
+    y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
     sol = similar(y)
     iter = cusimplex_proj!(sol, y; r=r, maxiters=maxiters, x0=x0)

@@ -3,8 +3,8 @@
 # x; sum_i |x[i]| <= r
 ############################################
 
-function cul1ball_solution_step(absy::T, y::T, λ::T) where {T<:AbstractFloat}
-    return copysign(max(zero(T), absy + λ), y)
+function cul1ball_solution_step(y::T, λ::T) where {T<:AbstractFloat}
+        return copysign(max(0, abs(y) + λ), y)
 end
 
 """
@@ -14,7 +14,7 @@ CUDA version of `l1ball_proj!`. `sol` and `x` must be `CuVector`s. The
 projection is returned as the `CuVector` `sol`.
 """
 function cul1ball_proj!(
-    sol::CuVector{T}, y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}[]
+    sol::CuVector{T}, y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
     absy = @~ abs.(y)
     if sum(absy) <= r
@@ -27,7 +27,7 @@ function cul1ball_proj!(
 
     if solved
         let λ = λ
-            map!((absy, y) -> cul1ball_solution_step(absy, y, λ), sol, absy, y)
+            map!(y -> cul1ball_solution_step(y, λ), sol, y)
         end
         return iter
     else
@@ -41,7 +41,7 @@ end
 replaces `y` by the projection.
 """
 function cul1ball_proj!(
-    y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}[]
+    y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
     return cul1ball_proj!(y, y; r=r, maxiters=maxiters, x0=x0)
 end
@@ -53,7 +53,7 @@ CUDA version of `l1ball_proj`. `y` must be a `CuVector`. The projection
 `sol` is also a `CuVector`.
 """
 function cul1ball_proj(
-    y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}[]
+    y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
     sol = similar(y)
     iter = cul1ball_proj!(sol, y; r=r, maxiters=maxiters, x0=x0)
