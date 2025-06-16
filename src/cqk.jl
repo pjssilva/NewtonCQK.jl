@@ -315,7 +315,7 @@ function cqk_newton(
         chunks = compress_chunks(chunks)
     end
 
-    return λ, iter, flag
+    return iter, flag
 end
 
 """
@@ -356,7 +356,7 @@ function cqk!(
     if isempty(chunks)
         chunks = initialize_chunks(length(P.a); numthreads=numthreads)
     end
-    λ, iter, flag = cqk_newton(P, x0, sol, chunks, maxiters)
+    iter, flag = cqk_newton(P, x0, sol, chunks, maxiters)
     return iter, flag
 end
 
