@@ -374,6 +374,6 @@ function cqk(
     x0::Vector{T}=T[]
 ) where {T<:AbstractFloat,V<:Vector{T}}
     sol = similar(P.a)
-    iter = cqk!(sol, P; maxiters=maxiters, numthreads=numthreads, chunks=chunks, x0=x0)
-    return sol, iter
+    iter, flag = cqk!(sol, P; maxiters=maxiters, numthreads=numthreads, chunks=chunks, x0=x0)
+    return sol, iter, flag
 end
