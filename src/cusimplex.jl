@@ -4,7 +4,7 @@
 ##############################################
 
 # To initialize λ when x0 is provided. It is assumed that x0 >= 0.
-function cusimplex_init(y::T, x0::T, r::T) where {T<:AbstractFloat}
+function cusimplex_init(y::T, x0::T) where {T<:AbstractFloat}
     return x0 > zero(T) ? (y, one(T)) : (zero(T), zero(T))
 end
 
@@ -25,9 +25,7 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
             return T0, 0, true
         end
     else
-        sumy, len = let r = r
-            mapreduce((y, x0) -> cusimplex_init(y, x0, r), .+, y, x0; init=(T0))
-        end
+        sumy, len = mapreduce(cusimplex_init, .+, y, x0; init=(T0, T0))
 
         if len > 0
             λ = (r - sumy) / len
