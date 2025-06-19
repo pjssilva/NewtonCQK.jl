@@ -25,10 +25,10 @@ function cul1ball_proj!(
     absx0 = @~ abs.(x0)
     λ, iter, solved = cusimplex_newton(absy, absx0, r, maxiters)
 
+    let λ = λ
+        map!(y -> cul1ball_solution_step(y, λ), sol, y)
+    end
     if solved
-        let λ = λ
-            map!(y -> cul1ball_solution_step(y, λ), sol, y)
-        end
         return iter
     else
         return min(-iter, -1)

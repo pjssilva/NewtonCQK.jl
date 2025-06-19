@@ -95,9 +95,8 @@ function l1ball_proj!(
     # Project onto the simplex
     λ, iter, solved = simplex_newton(absy, absx0, r, chunks, maxiters)
 
-    # Return resut
+    l1ball_dense_solution!(y, λ, sol, chunks, numthreads)
     if solved
-        l1ball_dense_solution!(y, λ, sol, chunks, numthreads)
         return iter
     else
         return min(-iter, -1)
@@ -154,10 +153,9 @@ function spl1ball_proj(
     # Project onto the simplex
     λ, iter, solved = simplex_newton(absy, absx0, r, chunks, maxiters)
 
-    # Return resut
     if solved
         return l1ball_sparse_solution(y, λ, chunks), iter
     else
-        return SparseVector(length(y), UInt[], T[]), min(-iter, -1)
+        return l1ball_sparse_solution(y, λ, chunks), min(-iter, -1)
     end
 end

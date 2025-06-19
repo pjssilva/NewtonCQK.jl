@@ -69,8 +69,8 @@ function cusimplex_proj!(
 ) where {T<:AbstractFloat}
     λ, iter, solved = cusimplex_newton(y, x0, r, maxiters)
 
+    @. sol = max(zero(T), y + λ)
     if solved
-        @. sol = max(zero(T), y + λ)
         return iter
     else
         return min(-iter, -1)

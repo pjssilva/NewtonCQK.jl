@@ -211,18 +211,16 @@ function cqk!(
 ) where {T<:AbstractFloat,V<:CuVector{T}}
     λ, iter, flag = cucqk_newton(P, x0, sol, maxiters)
 
-    if flag == 0
-        let λ = λ
-            map!(
-                (d, a, b, l, u) -> cucqk_solution(d, a, b, l, u, λ),
-                sol,
-                P.d,
-                P.a,
-                P.b,
-                P.l,
-                P.u
-            )
-        end
+    let λ = λ
+        map!(
+            (d, a, b, l, u) -> cucqk_solution(d, a, b, l, u, λ),
+            sol,
+            P.d,
+            P.a,
+            P.b,
+            P.l,
+            P.u
+        )
     end
     return iter, flag
 end

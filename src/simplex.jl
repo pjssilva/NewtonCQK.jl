@@ -384,8 +384,8 @@ function simplex_proj!(
     end
     λ, iter, solved = simplex_newton(y, x0, r, chunks, maxiters)
 
+    simplex_dense_solution!(y, λ, sol, chunks, numthreads)
     if solved
-        simplex_dense_solution!(y, λ, sol, chunks, numthreads)
         return iter
     else
         return min(-iter, -1)
@@ -438,9 +438,8 @@ function spsimplex_proj(
     λ, iter, solved = simplex_newton(y, x0, r, chunks, maxiters)
 
     if solved
-        # return SparseVector(length(y), UInt[], T[]), iter
         return simplex_sparse_solution(y, λ, chunks), iter
     else
-        return SparseVector(length(y), UInt[], T[]), min(-iter, -1)
+        return simplex_sparse_solution(y, λ, chunks), min(-iter, -1)
     end
 end
