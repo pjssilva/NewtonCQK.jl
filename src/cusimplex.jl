@@ -60,7 +60,7 @@ end
 
 CUDA version of `simplex_proj!`. `sol`, `x` and `x0` must be `CuVector`s.
 """
-function cusimplex_proj!(
+function simplex_proj!(
     sol::CuVector{T},
     y::CuVector{T};
     r=one(T),
@@ -82,10 +82,10 @@ end
 
 A CUDA version of `simplex_proj!` that returns the solution in `y` itself.
 """
-function cusimplex_proj!(
+function simplex_proj!(
     y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
-    return cusimplex_proj!(y, y; r=r, maxiters=maxiters, x0=x0)
+    return simplex_proj!(y, y; r=r, maxiters=maxiters, x0=x0)
 end
 
 """
@@ -94,10 +94,10 @@ end
 CUDA version of `simplex_proj`. `y` and `x0` must be `CuVector`'s.
 The projection `sol` is also a `CuVector`.
 """
-function cusimplex_proj(
+function simplex_proj(
     y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
     sol = similar(y)
-    iter = cusimplex_proj!(sol, y; r=r, maxiters=maxiters, x0=x0)
+    iter = simplex_proj!(sol, y; r=r, maxiters=maxiters, x0=x0)
     return sol, iter
 end
