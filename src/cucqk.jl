@@ -234,6 +234,6 @@ function cqk(
     P::CQKProblem{T,V}; maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat,V<:CuVector{T}}
     sol = similar(P.a)
-    iter, flag = cucqk!(sol, P; maxiters=maxiters, x0=x0)
+    iter, flag = cqk!(sol, P; maxiters=maxiters, x0=x0)
     return sol, iter, flag
 end

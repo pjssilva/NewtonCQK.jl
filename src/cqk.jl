@@ -1,11 +1,30 @@
 ###########################################################
 # SOLVE CONTINUOUS QUADRATIC KNAPSACK PROBLEMS OF THE FORM
 #
-# min 0.5*x'*D*x - a'*t  s.t.  b'*x = r,  l <= x <= u
+# min_x 1/2*x'*D*x - a'*t  s.t.  b'*x = r,  l <= x <= u
 #
 # It is supposed that b > 0 and D = Diagonal(d) with d > 0.
 ###########################################################
 
+"""
+    CQKProblem{T<:AbstractFloat,V<:AbstractVector{T}}
+
+A struct representing a continuous quadratic knapsack problem.
+
+min_x 1/2*x'*D*x - a'*t  s.t.  b'*x = r,  l <= x <= u
+
+# Fields
+- `d::V`: The diagonal elements of the positive definite matrix `D`.
+- `a::V`: The vector `a` in the objective function.
+- `b::V`: The vector `b` in the constraint `b'x = r`.
+- `r::T`: The right-hand side of the constraint `b'x = r`.
+- `l::V`: The lower bounds for the variables `x`.
+- `u::V`: The upper bounds for the variables `x`.
+
+# Assumptions
+- `b > 0` (component-wise).
+- `D = Diagonal(d)` with `d > 0` (component-wise).
+"""
 struct CQKProblem{T<:AbstractFloat,V<:AbstractVector{T}}
     d::V
     a::V
