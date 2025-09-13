@@ -314,7 +314,7 @@ function cqk_newton(
 
             if (λ >= up_λ) || (λ <= lo_λ)
                 # Newton step falls outside the bracket interval
-                λ = secant_step(lo_λ, up_λ, lo_φ, up_φ)
+                λ = secant_step(lo_λ, up_λ, Float64(lo_φ), Float64(up_φ))
             end
         else
             # φ′ = 0, so take the closest breakpoint to continue
