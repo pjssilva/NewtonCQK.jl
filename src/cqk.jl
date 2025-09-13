@@ -248,6 +248,8 @@ function cqk_newton(
     lo_φ = lo_λ
     up_φ = up_λ
     r = P.r
+    fixed_low = zero(T)
+    fixed_up = zero(T)
 
     # λ initialization
     if isempty(x0)
@@ -272,8 +274,8 @@ function cqk_newton(
 
         # Compute φ-r and φ'
         φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
-        φ_minus_r -= r
-        abs_φ += abs(r)
+        φ_minus_r -= r + fixed_low + fixed_up
+        abs_φ += abs(r + fixed_low + fixed_up)
 
         # Stop if φ-r ≈ 0
         if abs(φ_minus_r) < eps(T) * abs_φ
@@ -327,9 +329,9 @@ function cqk_newton(
 
         # Try to fix variables and update RHS for the next iteration
         if φ_minus_r > T0
-            r += altmapreduce(c -> fix_variables_l(P, x, c), .+, chunks; init=(T0))
+            fixed_low += altmapreduce(c -> fix_variables_l(P, x, c), .+, chunks; init=(T0))
         else
-            r += altmapreduce(c -> fix_variables_u(P, x, c), .+, chunks; init=(T0))
+            fixed_up += altmapreduce(c -> fix_variables_u(P, x, c), .+, chunks; init=(T0))
         end
         chunks = compress_chunks(chunks)
     end
