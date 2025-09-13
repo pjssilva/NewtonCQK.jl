@@ -273,7 +273,7 @@ function cqk_newton(
         iter += 1
 
         # Compute φ-r and φ'
-        φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
+        φ_minus_r, φ′, abs_φ = cqk_phi(P, x, T(λ), chunks)
         φ_minus_r -= r + fixed_low + fixed_up
         abs_φ += abs(r + fixed_low + fixed_up)
 
