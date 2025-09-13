@@ -254,10 +254,10 @@ function cqk_newton(
     # λ initialization
     if isempty(x0)
         s, q = altmapreduce(c -> cqk_init(P, c), .+, chunks; init=(T0, T0))
-        λ = (r - s) / q
+        λ = Float64((r - s) / q)
     else
         s, q, r_diff = altmapreduce(c -> cqk_init(P, x0, c), .+, chunks; init=(T0, T0, T0))
-        λ = (r + r_diff - s) / q
+        λ = Float64((r + r_diff - s) / q)
     end
 
     # q is Inf if data is inconsistent or an infeasibility was identified
