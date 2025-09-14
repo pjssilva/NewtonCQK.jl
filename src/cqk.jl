@@ -307,7 +307,7 @@ function cqk_newton(
             λ -= δ
 
             # Stop if no progress was achieved
-            if (abs(δ) < 100*eps(T)*abs(λ)) || (old_λ == λ)
+            if (abs(δ) < eps(T)) || (old_λ == λ)
                 flag = 0
                 break
             end
@@ -319,6 +319,7 @@ function cqk_newton(
         else
             # φ′ = 0, so take the closest breakpoint to continue
             λ = closest_breakpoint(P, λ, φ_minus_r, chunks)
+            println("Search for closest breadkpoint")
 
             if isinf(λ)
                 # There is no breakpoint, problem is infeasible
