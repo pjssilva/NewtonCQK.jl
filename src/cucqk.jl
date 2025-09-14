@@ -122,6 +122,7 @@ function cucqk_newton(
             )
         end
         φ_minus_r -= P.r
+        println(φ_minus_r)
 
         # Stop if φ-r ≈ 0
         if abs(φ_minus_r) < eps(T) * (abs(P.r) + abs_φ)

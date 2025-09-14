@@ -274,7 +274,8 @@ function cqk_newton(
 
         # Compute φ-r and φ'
         φ, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
-        φ_minus_r = T(φ  -(r + fixed_low + fixed_up))
+        φ_minus_r = T(φ - (r + fixed_low + fixed_up))
+        println(φ_minus_r)
         abs_φ += abs(T(r + fixed_low + fixed_up))
 
         # Stop if φ-r ≈ 0
@@ -333,7 +334,7 @@ function cqk_newton(
         end
 
         # Try to fix variables and update RHS for the next iteration
-        if φ_minus_r > T0
+        if φ_minus_r > 0
             fixed_low += altmapreduce(c -> fix_variables_l(P, x, c), .+, chunks; init=(T0))
         else
             fixed_up += altmapreduce(c -> fix_variables_u(P, x, c), .+, chunks; init=(T0))
