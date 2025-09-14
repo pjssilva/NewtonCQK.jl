@@ -205,7 +205,7 @@ function fix_variables_l(
     P::CQKProblem{T,V}, x::Vector{T}, chunk::FixedChunk
 ) where {T<:AbstractFloat,V<:Vector{T}}
     k = chunk.start - 1
-    r_diff = zero(T)
+    r_diff = 0.0 
     @inbounds for i in (chunk.start):(chunk.final)
         ii = chunk.active[i]
         if x[ii] <= P.l[ii]
@@ -217,14 +217,14 @@ function fix_variables_l(
         end
     end
     chunk.final = k
-    return r_diff
+    return T(r_diff)
 end
 
 function fix_variables_u(
     P::CQKProblem{T,V}, x::Vector{T}, chunk::FixedChunk
 ) where {T<:AbstractFloat,V<:Vector{T}}
     k = chunk.start - 1
-    r_diff = zero(T)
+    r_diff = 0.0
     @inbounds for i in (chunk.start):(chunk.final)
         ii = chunk.active[i]
         if x[ii] >= P.u[ii]
@@ -236,7 +236,7 @@ function fix_variables_u(
         end
     end
     chunk.final = k
-    return r_diff
+    return T(r_diff)
 end
 
 function cqk_newton(
