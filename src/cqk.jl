@@ -217,7 +217,7 @@ function fix_variables_l(
         end
     end
     chunk.final = k
-    return T(r_diff)
+    return r_diff
 end
 
 function fix_variables_u(
@@ -236,7 +236,7 @@ function fix_variables_u(
         end
     end
     chunk.final = k
-    return T(r_diff)
+    return r_diff
 end
 
 function cqk_newton(
@@ -247,17 +247,17 @@ function cqk_newton(
     up_λ = T(Inf)
     lo_φ = lo_λ
     up_φ = up_λ
-    r = P.r
-    fixed_low = zero(T)
-    fixed_up = zero(T)
+    r = Float64(P.r)
+    fixed_low = 0.0
+    fixed_up = 0.0
 
     # λ initialization
     if isempty(x0)
         s, q = altmapreduce(c -> cqk_init(P, c), .+, chunks; init=(T0, T0))
-        λ = (r - s) / q
+        λ = (T(r) - s) / q
     else
         s, q, r_diff = altmapreduce(c -> cqk_init(P, x0, c), .+, chunks; init=(T0, T0, T0))
-        λ = (r + r_diff - s) / q
+        λ = (T(r) + r_diff - s) / q
     end
 
     # q is Inf if data is inconsistent or an infeasibility was identified
@@ -274,8 +274,8 @@ function cqk_newton(
 
         # Compute φ-r and φ'
         φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
-        φ_minus_r -= r + fixed_low + fixed_up
-        abs_φ += abs(r + fixed_low + fixed_up)
+        φ_minus_r -= T(r + fixed_low + fixed_up)
+        abs_φ += abs(T(r + fixed_low + fixed_up))
 
         # Stop if φ-r ≈ 0
         if abs(φ_minus_r) < eps(T) * abs_φ
