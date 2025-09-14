@@ -254,10 +254,10 @@ function cqk_newton(
     # λ initialization
     if isempty(x0)
         s, q = altmapreduce(c -> cqk_init(P, c), .+, chunks; init=(T0, T0))
-        λ = Float64((r - s) / q)
+        λ = (r - s) / q
     else
         s, q, r_diff = altmapreduce(c -> cqk_init(P, x0, c), .+, chunks; init=(T0, T0, T0))
-        λ = Float64((r + r_diff - s) / q)
+        λ = (r + r_diff - s) / q
     end
 
     # q is Inf if data is inconsistent or an infeasibility was identified
@@ -273,7 +273,7 @@ function cqk_newton(
         iter += 1
 
         # Compute φ-r and φ'
-        φ_minus_r, φ′, abs_φ = cqk_phi(P, x, T(λ), chunks)
+        φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
         φ_minus_r -= r + fixed_low + fixed_up
         abs_φ += abs(r + fixed_low + fixed_up)
 
@@ -314,7 +314,7 @@ function cqk_newton(
 
             if (λ >= up_λ) || (λ <= lo_λ)
                 # Newton step falls outside the bracket interval
-                λ = secant_step(lo_λ, up_λ, Float64(lo_φ), Float64(up_φ))
+                λ = secant_step(lo_λ, up_λ, lo_φ, up_φ)
             end
         else
             # φ′ = 0, so take the closest breakpoint to continue
