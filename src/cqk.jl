@@ -273,8 +273,8 @@ function cqk_newton(
         iter += 1
 
         # Compute φ-r and φ'
-        φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
-        φ_minus_r -= T(r + fixed_low + fixed_up)
+        φ, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
+        φ_minus_r = T(φ  -(r + fixed_low + fixed_up))
         abs_φ += abs(T(r + fixed_low + fixed_up))
 
         # Stop if φ-r ≈ 0
@@ -289,10 +289,10 @@ function cqk_newton(
         # Thus, we store φ_minus_r for the secant step.
         if φ_minus_r < T0
             lo_λ = λ
-            lo_φ = φ_minus_r
+            lo_φ = φ
         else
             up_λ = λ
-            up_φ = φ_minus_r
+            up_φ = φ
         end
 
         # Stop if the bracket interval is too small
@@ -314,12 +314,16 @@ function cqk_newton(
 
             if (λ >= up_λ) || (λ <= lo_λ)
                 # Newton step falls outside the bracket interval
-                λ = secant_step(lo_λ, up_λ, lo_φ, up_φ)
+                λ = secant_step(
+                    lo_λ, 
+                    up_λ, 
+                    T(lo_φ - (r + fixed_low + fixed_up)), 
+                    T(up_φ - (r + fixed_low + fixed_up))
+                )
             end
         else
             # φ′ = 0, so take the closest breakpoint to continue
             λ = closest_breakpoint(P, λ, φ_minus_r, chunks)
-            println("Search for closest breadkpoint")
 
             if isinf(λ)
                 # There is no breakpoint, problem is infeasible
