@@ -307,7 +307,7 @@ function cqk_newton(
             λ -= δ
 
             # Stop if no progress was achieved
-            if (abs(δ) < eps(T)) || (old_λ == λ)
+            if (abs(δ) < 100*eps(T)*abs(λ)) || (old_λ == λ)
                 flag = 0
                 break
             end
