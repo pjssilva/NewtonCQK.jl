@@ -59,3 +59,5 @@ end
         return OhMyThreads.tforeach(f!, it; scheduler=:static, nchunks=length(it))
     end
 end
+
+end
