@@ -56,7 +56,7 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
 end
 
 """
-    iter = cusimplex_proj!(sol, y; r=1.0, maxiters=100, x0=CuVector(undef, 0))
+    iter, flag = cusimplex_proj!(sol, y; r=1.0, maxiters=100, x0=CuVector(undef, 0))
 
 CUDA version of `simplex_proj!`. `sol`, `x` and `x0` must be `CuVector`s.
 """
@@ -73,7 +73,7 @@ function simplex_proj!(
 end
 
 """
-    iter = cusimplex_proj!(y; r=1.0, maxiters=100, x0=CuVector(undef, 0))
+    iter, flag = cusimplex_proj!(y; r=1.0, maxiters=100, x0=CuVector(undef, 0))
 
 A CUDA version of `simplex_proj!` that returns the solution in `y` itself.
 """
@@ -84,7 +84,7 @@ function simplex_proj!(
 end
 
 """
-    sol, iter = cusimplex_proj(y; r=1.0, maxiters=100, x0=CuVector(undef, 0))
+    sol, iter, flag = cusimplex_proj(y; r=1.0, maxiters=100, x0=CuVector(undef, 0))
 
 CUDA version of `simplex_proj`. `y` and `x0` must be `CuVector`'s.
 The projection `sol` is also a `CuVector`.

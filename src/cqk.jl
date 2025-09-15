@@ -260,7 +260,7 @@ function cqk_newton(
 
     # q is Inf if data is inconsistent or an infeasibility was identified
     if isinf(q)
-        return 0, :invalid_or_infeas
+        return 0, :invalid
     end
 
     flag = :max_iter
@@ -350,8 +350,8 @@ a `CQKProblem` structure that contains the problem data.
 
 The solution in written in `sol`, which must have the appropriate size and
 type. `iter` returns the number of Newton steps used. `flag` indicates success
-(`flag = 0`), invalid data (`flag = 1`), infeasible problem (`flag = 2`) or
-failure (`flag = 3`).
+(`flag = :solved`), invalid data (`flag = :invalid`), infeasible problem
+(`flag = :infeas`) or failure (`flag = :max_iter`).
 
 It is possible to pre-allocate, for efficiency, the workspace using:
 

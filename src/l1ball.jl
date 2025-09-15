@@ -48,14 +48,14 @@ function l1ball_sparse_solution(
 end
 
 """
-    iter = l1ball_proj!(sol, y; r=1.0, maxiters=100, nchunks=Threads.nthreads(), x0=[], chunks=Chunk[])
+    iter, flag = l1ball_proj!(sol, y; r=1.0, maxiters=100, nchunks=Threads.nthreads(), x0=[], chunks=Chunk[])
 
 Parallel semismooth Newton method to project `y` onto the l1-ball 
 `x: || x ||_1 <= r`.
 
 The projection in written in `sol`, which must have the same size and type of
-`y`. `iter` returns the number of Newton steps used. It indicates failure if
-negative.
+`y`. `iter` returns the number of Newton steps used. `flag` indicates success
+(`flag = :solved`) or failure (`flag = :max_iter`).
 
 It is possible to pre-allocate, for efficiency, the workspace using:
 
@@ -63,7 +63,7 @@ It is possible to pre-allocate, for efficiency, the workspace using:
 
 Then, it can be used in subsequent executions of `simplex_proj`:
 
-`iter = simplex_proj(sol, y; chunks=chunks)`
+`iter, flag = simplex_proj(sol, y; chunks=chunks)`
 
 In this case, `nchunks` in `simplex_proj` will be ignored and the value
 used when creating the workspace will be used instead.
@@ -100,7 +100,7 @@ function l1ball_proj!(
 end
 
 """
-    sol, iter = l1ball_proj(y; r=1.0, maxiters=100, nchunks=Threads.nthreads(), x0=[], chunks=Chunk[])
+    sol, iter, flag = l1ball_proj(y; r=1.0, maxiters=100, nchunks=Threads.nthreads(), x0=[], chunks=Chunk[])
 
 Variation of `simplex_proj!`, that allocates a new vector for the solution,
 returning it.
@@ -121,14 +121,14 @@ function l1ball_proj(
 end
 
 """
-    sol, iter = spl1ball_proj(y; r=1.0, maxiters=100, nchunks=Threads.nthreads(), x0=[], chunks=Chunk[])
+    sol, iter, flag = spl1ball_proj(y; r=1.0, maxiters=100, nchunks=Threads.nthreads(), x0=[], chunks=Chunk[])
 
 Parallel semismooth Newton method to project `y` onto the l1-ball 
 `x: || x ||_1 <= r`.
 
 The projection is returned as the sparse vector `sol`, that has the same
-`eltype` as y. `iter` returns the number of Newton steps used. It indicates
-failure if negative.
+`eltype` as y. `iter` returns the number of Newton steps used. `flag`
+indicates success (`flag = :solved`) or failure (`flag = :max_iter`).
 """
 function spl1ball_proj(
     y::Vector{T};

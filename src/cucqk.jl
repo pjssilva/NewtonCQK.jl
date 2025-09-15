@@ -100,7 +100,7 @@ function cucqk_newton(
 
     # q is Inf if data is inconsistent or an infeasibility was identified
     if isinf(q)
-        return 0, :invalid_or_infeas
+        return 0, :invalid
     end
 
     flag = :max_iter
