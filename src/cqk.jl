@@ -135,7 +135,7 @@ function cqk_phi_step(
         absphi += abs(phi_ii)
     end
 
-    return T(phi), T(deriv), T(absphi)
+    return phi, deriv, absphi
 end
 
 @inline function cqk_phi(
@@ -205,7 +205,7 @@ function fix_variables_l(
     P::CQKProblem{T,V}, x::Vector{T}, chunk::FixedChunk
 ) where {T<:AbstractFloat,V<:Vector{T}}
     k = chunk.start - 1
-    r_diff = 0.0 
+    r_diff = zero(T)
     @inbounds for i in (chunk.start):(chunk.final)
         ii = chunk.active[i]
         if x[ii] <= P.l[ii]
@@ -224,7 +224,7 @@ function fix_variables_u(
     P::CQKProblem{T,V}, x::Vector{T}, chunk::FixedChunk
 ) where {T<:AbstractFloat,V<:Vector{T}}
     k = chunk.start - 1
-    r_diff = 0.0
+    r_diff = zero(T)
     @inbounds for i in (chunk.start):(chunk.final)
         ii = chunk.active[i]
         if x[ii] >= P.u[ii]
@@ -247,17 +247,15 @@ function cqk_newton(
     up_λ = T(Inf)
     lo_φ = lo_λ
     up_φ = up_λ
-    r = Float64(P.r)
-    fixed_low = 0.0
-    fixed_up = 0.0
+    r = P.r
 
     # λ initialization
     if isempty(x0)
         s, q = altmapreduce(c -> cqk_init(P, c), .+, chunks; init=(T0, T0))
-        λ = (T(r) - s) / q
+        λ = (r - s) / q
     else
         s, q, r_diff = altmapreduce(c -> cqk_init(P, x0, c), .+, chunks; init=(T0, T0, T0))
-        λ = (T(r) + r_diff - s) / q
+        λ = (r + r_diff - s) / q
     end
 
     # q is Inf if data is inconsistent or an infeasibility was identified
@@ -273,9 +271,9 @@ function cqk_newton(
         iter += 1
 
         # Compute φ-r and φ'
-        φ, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
-        φ_minus_r = T(φ - (r + fixed_low + fixed_up))
-        abs_φ += abs(T(r + fixed_low + fixed_up))
+        φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
+        φ_minus_r -= r
+        abs_φ += abs(r)
 
         # Stop if φ-r ≈ 0
         if abs(φ_minus_r) < eps(T) * abs_φ
@@ -289,10 +287,10 @@ function cqk_newton(
         # Thus, we store φ_minus_r for the secant step.
         if φ_minus_r < T0
             lo_λ = λ
-            lo_φ = φ
+            lo_φ = φ_minus_r
         else
             up_λ = λ
-            up_φ = φ
+            up_φ = φ_minus_r
         end
 
         # Stop if the bracket interval is too small
@@ -314,12 +312,7 @@ function cqk_newton(
 
             if (λ >= up_λ) || (λ <= lo_λ)
                 # Newton step falls outside the bracket interval
-                λ = secant_step(
-                    lo_λ, 
-                    up_λ, 
-                    T(lo_φ - (r + fixed_low + fixed_up)), 
-                    T(up_φ - (r + fixed_low + fixed_up))
-                )
+                λ = secant_step(lo_λ, up_λ, lo_φ, up_φ)
             end
         else
             # φ′ = 0, so take the closest breakpoint to continue
@@ -333,10 +326,10 @@ function cqk_newton(
         end
 
         # Try to fix variables and update RHS for the next iteration
-        if φ_minus_r > 0
-            fixed_low += altmapreduce(c -> fix_variables_l(P, x, c), .+, chunks; init=(T0))
+        if φ_minus_r > T0
+            r += altmapreduce(c -> fix_variables_l(P, x, c), .+, chunks; init=(T0))
         else
-            fixed_up += altmapreduce(c -> fix_variables_u(P, x, c), .+, chunks; init=(T0))
+            r += altmapreduce(c -> fix_variables_u(P, x, c), .+, chunks; init=(T0))
         end
         chunks = compress_chunks(chunks)
     end
