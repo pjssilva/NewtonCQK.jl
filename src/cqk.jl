@@ -111,9 +111,9 @@ end
 function cqk_phi_step(
     P::CQKProblem{T,V}, x::Vector{T}, λ::T, chunk::FixedChunk
 ) where {T<:AbstractFloat,V<:Vector{T}}
-    phi = 0.0 #zero(T)
-    deriv = 0.0 #zero(T)
-    absphi = 0.0 #zero(T)
+    phi = zero(T)
+    deriv = zero(T)
+    absphi = zero(T)
 
     @inbounds for i in (chunk.start):(chunk.final)
         ii = chunk.active[i]
