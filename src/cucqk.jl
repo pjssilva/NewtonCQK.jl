@@ -100,10 +100,10 @@ function cucqk_newton(
 
     # q is Inf if data is inconsistent or an infeasibility was identified
     if isinf(q)
-        return T0, 0, 1
+        return 0, :invalid_or_infeas
     end
 
-    flag = 3
+    flag = :max_iter
 
     # Newton loop
     iter = 0
@@ -125,7 +125,7 @@ function cucqk_newton(
 
         # Stop if φ-r ≈ 0
         if abs(φ_minus_r) < eps(T) * (abs(P.r) + abs_φ)
-            flag = 0
+            flag = :solved
             break
         end
 
@@ -142,7 +142,7 @@ function cucqk_newton(
 
         # Stop if the bracket interval is too small
         if up_λ - lo_λ < eps(T) * max(abs(lo_λ), abs(up_λ))
-            flag = 0
+            flag = :solved
             break
         end
 
@@ -155,7 +155,7 @@ function cucqk_newton(
 
             # Stop if no progress was achieved
             if (abs(δ) < eps(T)) || (old_λ == λ)
-                flag = 0
+                flag = :solved
                 break
             end
 
@@ -192,7 +192,7 @@ function cucqk_newton(
 
             if isinf(λ)
                 # There is no breakpoint, problem is infeasible
-                flag = 2
+                flag = :infeas
                 break
             end
         end

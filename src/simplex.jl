@@ -251,7 +251,7 @@ function simplex_newton(
         if abs(λ) < eps(T) || isfeasible(total, r, y)
             # y is the solution!
             # iter = 0 indicates the solution need not be re-computed
-            return T0, 0, true
+            return T0, 0, :solved
         end
 
         φ, φ′ = simplex_phi(y, λ, r, true, chunks)
@@ -261,7 +261,7 @@ function simplex_newton(
         )
 
         if isfeasible(total, r, y)
-            return T0, 0, true
+            return T0, 0, :solved
         end
 
         if len > 0
@@ -279,14 +279,14 @@ function simplex_newton(
 
     # Newton loop
     iter = 1
-    solved = false
+    flag = :max_iter
     while (iter < maxiters)
         δ = (φ - r) / φ′
         old_λ = λ
         λ -= δ
         if (δ < eps(T)) || (old_λ == λ)
             # If δ is too small or it does not modify λ, stop. In both cases, φ-r ≈ 0.
-            solved = true
+            flag = :solved
             break
         end
         iter += 1
@@ -295,18 +295,18 @@ function simplex_newton(
         chunks = compress_chunks(chunks)
     end
 
-    return λ, iter, solved
+    return λ, iter, flag
 end
 
 # Compute solution as a dense vector
 function simplex_dense_solution!(
-    y::Vector{T}, λ::T, sol::Vector{T}, chunks::Vector{C}, numthreads
+    y::Vector{T}, λ::T, sol::Vector{T}, chunks::Vector{C}, nchunks
 ) where {T<:AbstractFloat,C<:AbstractChunk}
-    if numthreads == 1
+    if nchunks == 1
         fill!(sol, zero(T))
     else
         OhMyThreads.@tasks for i in eachindex(sol)
-            @set nchunks = numthreads
+            @set nchunks = nchunks
             @inbounds sol[i] = zero(T)
         end
     end
@@ -343,7 +343,7 @@ function simplex_sparse_solution(
 end
 
 """
-    iter = simplex_proj!(sol, y; r=1.0, maxiters=100, numthreads=Threads.nthreads(), x0=[], chunks=Chunk[])
+    iter = simplex_proj!(sol, y; r=1.0, maxiters=100, nchunks=Threads.nthreads(), x0=[], chunks=Chunk[])
 
 Parallel semismooth Newton method to project `y` onto the simplex `x: sum_i
 x[i] == r, x >= 0`.
@@ -354,13 +354,13 @@ negative.
 
 It is possible to pre-allocate, for efficiency, the workspace using:
 
-`chunks = initialize_chunks(n; numthreads=Threads.nthreads())`
+`chunks = initialize_chunks(n; nchunks=Threads.nthreads())`
 
 Then, it can be used in subsequent executions of `simplex_proj!`:
 
 `iter = simplex_proj!(sol, y; chunks=chunks)`
 
-In this case, `numthreads` in `simplex_proj!` will be ignored and the value
+In this case, `nchunks` in `simplex_proj!` will be ignored and the value
 used when creating the workspace will be used instead.
 
 Obs: `sol` has to be a different vector that `y`
@@ -370,7 +370,7 @@ function simplex_proj!(
     y::Vector{T};
     r=one(T),
     maxiters=100,
-    numthreads=Threads.nthreads(),
+    nchunks=Threads.nthreads(),
     chunks::Vector{C}=AbstractChunk[],
     x0::Vector{T}=T[]
 )::Int where {T<:AbstractFloat,C<:AbstractChunk}
@@ -378,22 +378,19 @@ function simplex_proj!(
     @assert sol !== y "sol and y vectors cannot be the same"
 
     if isempty(chunks)
-        chunks = initialize_chunks(DynamicChunk, length(y); numthreads=numthreads)
+        chunks = initialize_chunks(DynamicChunk, length(y); nchunks=nchunks)
     else
-        numthreads = length(chunks)
+        nchunks = length(chunks)
     end
-    λ, iter, solved = simplex_newton(y, x0, r, chunks, maxiters)
 
-    simplex_dense_solution!(y, λ, sol, chunks, numthreads)
-    if solved
-        return iter
-    else
-        return min(-iter, -1)
-    end
+    λ, iter, flag = simplex_newton(y, x0, r, chunks, maxiters)
+
+    simplex_dense_solution!(y, λ, sol, chunks, nchunks)
+    return iter, flag
 end
 
 """
-    sol, iter = simplex_proj(y; r=1.0, maxiters=100, numthreads=Threads.nthreads(), x0=[], chunks=Chunk[])
+    sol, iter = simplex_proj(y; r=1.0, maxiters=100, nchunks=Threads.nthreads(), x0=[], chunks=Chunk[])
 
 Variation of `simplex_proj!`, that allocates a new vector for the solution,
 returning it.
@@ -402,19 +399,19 @@ function simplex_proj(
     y::Vector{T};
     r=one(T),
     maxiters=100,
-    numthreads=Threads.nthreads(),
+    nchunks=Threads.nthreads(),
     chunks::Vector{C}=AbstractChunk[],
     x0::Vector{T}=T[]
 )::Tuple{Vector{T},Int} where {T<:AbstractFloat,C<:AbstractChunk}
     sol = similar(y)
-    iter = simplex_proj!(
-        sol, y; r=r, maxiters=maxiters, numthreads=numthreads, chunks=chunks, x0=x0
+    iter, flag = simplex_proj!(
+        sol, y; r=r, maxiters=maxiters, nchunks=nchunks, chunks=chunks, x0=x0
     )
-    return sol, iter
+    return sol, iter, flag
 end
 
 """
-    sol, iter = spsimplex_proj(y; r=1.0, maxiters=100, numthreads=Threads.nthreads(), x0=[], chunks=Chunk[])
+    sol, iter = spsimplex_proj(y; r=1.0, maxiters=100, nchunks=Threads.nthreads(), x0=[], chunks=Chunk[])
 
 Parallel semismooth Newton method to project `y` onto the simplex `x: sum_i
 x[i] == r, x >= 0`.
@@ -427,19 +424,15 @@ function spsimplex_proj(
     y::Vector{T};
     r=one(T),
     maxiters=100,
-    numthreads=Threads.nthreads(),
+    nchunks=Threads.nthreads(),
     chunks::Vector{C}=AbstractChunk[],
     x0::Vector{T}=T[]
 )::Tuple{SparseVector{T,UInt},Int} where {T<:AbstractFloat,C<:AbstractChunk}
     if isempty(chunks)
-        chunks = initialize_chunks(DynamicChunk, length(y); numthreads=numthreads)
+        chunks = initialize_chunks(DynamicChunk, length(y); nchunks=nchunks)
     end
 
-    λ, iter, solved = simplex_newton(y, x0, r, chunks, maxiters)
+    λ, iter, flag = simplex_newton(y, x0, r, chunks, maxiters)
 
-    if solved
-        return simplex_sparse_solution(y, λ, chunks), iter
-    else
-        return simplex_sparse_solution(y, λ, chunks), min(-iter, -1)
-    end
+    return simplex_sparse_solution(y, λ, chunks), iter, flag
 end

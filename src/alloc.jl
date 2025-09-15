@@ -30,15 +30,15 @@ DynamicChunk(s, f) = DynamicChunk(Vector{UInt}[], 0, 0, UInt(s), UInt(f))
 Pre-allocates workspace and returns the appropriate structure.
 This is useful if you need to execute a function several times in sequence.
 """
-function initialize_chunks(C::Type, n; numthreads=Threads.nthreads())
-    chunks = Vector{C}(undef, numthreads)
-    len, inc = divrem(n, numthreads)
+function initialize_chunks(C::Type, n; nchunks=Threads.nthreads())
+    chunks = Vector{C}(undef, nchunks)
+    len, inc = divrem(n, nchunks)
     start = 1
     @inbounds for i in 1:inc
         chunks[i] = C(start, start + len)
         start += len + 1
     end
-    @inbounds for i in (inc + 1):numthreads
+    @inbounds for i in (inc + 1):nchunks
         chunks[i] = C(start, start + len - 1)
         start += len
     end
@@ -46,8 +46,8 @@ function initialize_chunks(C::Type, n; numthreads=Threads.nthreads())
     return chunks
 end
 
-function initialize_chunks(n; numthreads=Threads.nthreads())
-    return initialize_chunks(FixedChunk, n; numthreads=numthreads)
+function initialize_chunks(n; nchunks=Threads.nthreads())
+    return initialize_chunks(FixedChunk, n; nchunks=nchunks)
 end
 
 function compress_chunks(chunks::Vector{C}; threshold=512) where {C<:AbstractChunk}

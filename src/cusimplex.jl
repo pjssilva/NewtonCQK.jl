@@ -22,7 +22,7 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
 
         if abs(λ) < eps(T)
             # y is the solution!
-            return T0, 0, true
+            return T0, 0, :solved
         end
     else
         sumy, len = mapreduce(cusimplex_init, .+, y, x0; init=(T0, T0))
@@ -36,7 +36,7 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
 
     # Newton loop
     iter = 0
-    solved = false
+    flag = :max_iter
     while (iter < maxiters)
         φ, φ′ = let λ = λ
             mapreduce(y -> cusimplex_phi_step(y, λ), .+, y; init=(T0, T0))
@@ -46,13 +46,13 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
         λ -= δ
         if (δ < eps(T)) || (old_λ == λ)
             # If δ is too small or it does not modify λ, stop. In both cases, φ-r ≈ 0.
-            solved = true
+            flag = :solved
             break
         end
         iter += 1
     end
 
-    return λ, iter, solved
+    return λ, iter, flag
 end
 
 """
@@ -67,14 +67,9 @@ function simplex_proj!(
     maxiters=100,
     x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
-    λ, iter, solved = cusimplex_newton(y, x0, r, maxiters)
-
+    λ, iter, flag = cusimplex_newton(y, x0, r, maxiters)
     @. sol = max(zero(T), y + λ)
-    if solved
-        return iter
-    else
-        return min(-iter, -1)
-    end
+    return iter, flag
 end
 
 """
@@ -98,6 +93,6 @@ function simplex_proj(
     y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
     sol = similar(y)
-    iter = simplex_proj!(sol, y; r=r, maxiters=maxiters, x0=x0)
-    return sol, iter
+    iter, flag = simplex_proj!(sol, y; r=r, maxiters=maxiters, x0=x0)
+    return sol, iter, flag
 end

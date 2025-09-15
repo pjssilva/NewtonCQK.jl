@@ -4,7 +4,7 @@
 ############################################
 
 function cul1ball_solution_step(y::T, λ::T) where {T<:AbstractFloat}
-        return copysign(max(0, abs(y) + λ), y)
+    return copysign(max(0, abs(y) + λ), y)
 end
 
 """
@@ -19,20 +19,16 @@ function l1ball_proj!(
     absy = @~ abs.(y)
     if sum(absy) <= r
         sol .= y
-        return 0
+        return 0, :solved
     end
 
     absx0 = @~ abs.(x0)
-    λ, iter, solved = cusimplex_newton(absy, absx0, r, maxiters)
+    λ, iter, flag = cusimplex_newton(absy, absx0, r, maxiters)
 
     let λ = λ
         map!(y -> cul1ball_solution_step(y, λ), sol, y)
     end
-    if solved
-        return iter
-    else
-        return min(-iter, -1)
-    end
+    return iter, flag
 end
 
 """
@@ -56,6 +52,6 @@ function l1ball_proj(
     y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
     sol = similar(y)
-    iter = l1ball_proj!(sol, y; r=r, maxiters=maxiters, x0=x0)
-    return sol, iter
+    iter, flag = l1ball_proj!(sol, y; r=r, maxiters=maxiters, x0=x0)
+    return sol, iter, flag
 end

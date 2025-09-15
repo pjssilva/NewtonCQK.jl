@@ -260,10 +260,10 @@ function cqk_newton(
 
     # q is Inf if data is inconsistent or an infeasibility was identified
     if isinf(q)
-        return T0, 0, 1
+        return 0, :invalid_or_infeas
     end
 
-    flag = 3
+    flag = :max_iter
 
     # Newton loop
     iter = 0
@@ -277,7 +277,7 @@ function cqk_newton(
 
         # Stop if φ-r ≈ 0
         if abs(φ_minus_r) < eps(T) * abs_φ
-            flag = 0
+            flag = :solved
             break
         end
 
@@ -295,7 +295,7 @@ function cqk_newton(
 
         # Stop if the bracket interval is too small
         if up_λ - lo_λ < eps(T) * max(abs(lo_λ), abs(up_λ))
-            flag = 0
+            flag = :solved
             break
         end
 
@@ -306,7 +306,7 @@ function cqk_newton(
 
             # Stop if no progress was achieved
             if (abs(δ) < eps(T)) || (old_λ == λ)
-                flag = 0
+                flag = :solved
                 break
             end
 
@@ -320,7 +320,7 @@ function cqk_newton(
 
             if isinf(λ)
                 # There is no breakpoint, problem is infeasible
-                flag = 2
+                flag = :infeas
                 break
             end
         end
@@ -338,7 +338,7 @@ function cqk_newton(
 end
 
 """
-    iter, flag = cqk!(sol, P; maxiters=100, numthreads=Threads.nthreads(), x0=[], chunks=FixedChunk[])
+    iter, flag = cqk!(sol, P; maxiters=100, nchunks=Threads.nthreads(), x0=[], chunks=FixedChunk[])
 
 Parallel semismooth Newton method to solve the continuous quadratic knapsack
 problem
@@ -355,32 +355,32 @@ failure (`flag = 3`).
 
 It is possible to pre-allocate, for efficiency, the workspace using:
 
-`chunks = initialize_chunks(n; numthreads=Threads.nthreads())`
+`chunks = initialize_chunks(n; nchunks=Threads.nthreads())`
 
 Then, it can be used in subsequent executions of `cqk!`:
 
 `iter, flag = cqk!(sol, P; chunks=chunks)`
 
-In this case, `numthreads` in `cqk!` will be ignored and the value
+In this case, `nchunks` in `cqk!` will be ignored and the value
 used when creating the workspace will be used instead.
 """
 function cqk!(
     sol::Vector{T},
     P::CQKProblem{T,V};
     maxiters=100,
-    numthreads=Threads.nthreads(),
+    nchunks=Threads.nthreads(),
     chunks::Vector{FixedChunk}=FixedChunk[],
     x0::Vector{T}=T[]
 ) where {T<:AbstractFloat,V<:Vector{T}}
     if isempty(chunks)
-        chunks = initialize_chunks(length(P.a); numthreads=numthreads)
+        chunks = initialize_chunks(length(P.a); nchunks=nchunks)
     end
     iter, flag = cqk_newton(P, x0, sol, chunks, maxiters)
     return iter, flag
 end
 
 """
-    sol, iter, flag = cqk(P; maxiters=100, numthreads=Threads.nthreads(), x0=[], chunks=FixedChunk[])
+    sol, iter, flag = cqk(P; maxiters=100, nchunks=Threads.nthreads(), x0=[], chunks=FixedChunk[])
 
 Variation of `cqk!`, that allocates a new vector for the solution,
 returning it.
@@ -388,11 +388,11 @@ returning it.
 function cqk(
     P::CQKProblem{T,V};
     maxiters=100,
-    numthreads=Threads.nthreads(),
+    nchunks=Threads.nthreads(),
     chunks::Vector{FixedChunk}=FixedChunk[],
     x0::Vector{T}=T[]
 ) where {T<:AbstractFloat,V<:Vector{T}}
     sol = similar(P.a)
-    iter, flag = cqk!(sol, P; maxiters=maxiters, numthreads=numthreads, chunks=chunks, x0=x0)
+    iter, flag = cqk!(sol, P; maxiters=maxiters, nchunks=nchunks, chunks=chunks, x0=x0)
     return sol, iter, flag
 end
