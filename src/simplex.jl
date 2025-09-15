@@ -373,7 +373,7 @@ function simplex_proj!(
     nchunks=Threads.nthreads(),
     chunks::Vector{C}=AbstractChunk[],
     x0::Vector{T}=T[]
-)::Int where {T<:AbstractFloat,C<:AbstractChunk}
+) where {T<:AbstractFloat,C<:AbstractChunk}
     # Asserts that the user is not doing aliasing between input and output
     @assert sol !== y "sol and y vectors cannot be the same"
 
@@ -402,7 +402,7 @@ function simplex_proj(
     nchunks=Threads.nthreads(),
     chunks::Vector{C}=AbstractChunk[],
     x0::Vector{T}=T[]
-)::Tuple{Vector{T},Int} where {T<:AbstractFloat,C<:AbstractChunk}
+) where {T<:AbstractFloat,C<:AbstractChunk}
     sol = similar(y)
     iter, flag = simplex_proj!(
         sol, y; r=r, maxiters=maxiters, nchunks=nchunks, chunks=chunks, x0=x0
@@ -427,7 +427,7 @@ function spsimplex_proj(
     nchunks=Threads.nthreads(),
     chunks::Vector{C}=AbstractChunk[],
     x0::Vector{T}=T[]
-)::Tuple{SparseVector{T,UInt},Int} where {T<:AbstractFloat,C<:AbstractChunk}
+) where {T<:AbstractFloat,C<:AbstractChunk}
     if isempty(chunks)
         chunks = initialize_chunks(DynamicChunk, length(y); nchunks=nchunks)
     end
