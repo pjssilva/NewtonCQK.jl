@@ -20,7 +20,7 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
     if isempty(x0)
         λ = (r - sum(y)) / length(y)
 
-        if abs(λ) < eps(T)
+        if abs(λ) < eps(T)^0.75
             # y is the solution!
             return T0, 0, :solved
         end
@@ -44,7 +44,7 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
         δ = (φ - r) / φ′
         old_λ = λ
         λ -= δ
-        if (δ < eps(T)) || (old_λ == λ)
+        if (δ < eps(T)^0.75) || (old_λ == λ)
             # If δ is too small or it does not modify λ, stop. In both cases, φ-r ≈ 0.
             flag = :solved
             break

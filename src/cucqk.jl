@@ -124,7 +124,7 @@ function cucqk_newton(
         φ_minus_r -= P.r
 
         # Stop if φ-r ≈ 0
-        if abs(φ_minus_r) < eps(T) * (abs(P.r) + abs_φ)
+        if abs(φ_minus_r) < eps(T)^0.75 * (abs(P.r) + abs_φ)
             flag = :solved
             break
         end
@@ -141,7 +141,7 @@ function cucqk_newton(
         end
 
         # Stop if the bracket interval is too small
-        if up_λ - lo_λ < eps(T) * max(abs(lo_λ), abs(up_λ))
+        if up_λ - lo_λ < eps(T)^0.75 * max(abs(lo_λ), abs(up_λ))
             flag = :solved
             break
         end
@@ -154,7 +154,7 @@ function cucqk_newton(
             λ -= δ
 
             # Stop if no progress was achieved
-            if (abs(δ) < eps(T)) || (old_λ == λ)
+            if (abs(δ) < eps(T)^0.75) || (old_λ == λ)
                 flag = :solved
                 break
             end

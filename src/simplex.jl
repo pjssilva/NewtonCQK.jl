@@ -248,7 +248,7 @@ function simplex_newton(
 
         λ = (r - sumy) / len
 
-        if abs(λ) < eps(T) || isfeasible(total, r, y)
+        if abs(λ) < eps(T)^0.75 || isfeasible(total, r, y)
             # y is the solution!
             # iter = 0 indicates the solution need not be re-computed
             return T0, 0, :solved
@@ -284,7 +284,7 @@ function simplex_newton(
         δ = (φ - r) / φ′
         old_λ = λ
         λ -= δ
-        if (δ < eps(T)) || (old_λ == λ)
+        if (δ < eps(T)^0.75) || (old_λ == λ)
             # If δ is too small or it does not modify λ, stop. In both cases, φ-r ≈ 0.
             flag = :solved
             break
