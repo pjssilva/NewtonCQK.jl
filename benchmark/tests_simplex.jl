@@ -44,7 +44,7 @@ SIMPLEX_METHODS = METHOD[]
 
 # Simplex, dense, CPU, Float64
 push!(SIMPLEX_METHODS, METHOD(
-    "simplex (F64)",
+    "simplex (FP64)",
     identity,
     (P, nthreads) -> b_dense(P, simplex_proj!, nthreads),
     (P, nthreads) -> simplex_proj(P, nchunks=nthreads)[2:3],
@@ -55,7 +55,7 @@ push!(SIMPLEX_METHODS, METHOD(
 
 # Simplex, sparse, CPU, Float64
 push!(SIMPLEX_METHODS, METHOD(
-    "sparse simplex (F64)",
+    "sparse simplex (FP64)",
     identity,
     (P, nthreads) -> b_sparse(P, spsimplex_proj, nthreads),
     (P, nthreads) -> spsimplex_proj(P, nchunks=nthreads)[2:3],
@@ -91,8 +91,8 @@ push!(SIMPLEX_METHODS, METHOD(
 # Simplex, dense, GPU, Float32
 if USECUDA > 32
     push!(SIMPLEX_METHODS, METHOD(
-        "simplex (GPU)",
-        P -> CPUtoGPU(P, Float32),
+        "simplex (GPU, FP64)",
+        P -> CPUtoGPU(P, Float64),
         (P, nthreads) -> b_cuda(P, simplex_proj!, nthreads),
         (P, nthreads) -> simplex_proj(P)[2:3],
         (P, nthreads) -> simplex_infeas(simplex_proj(P)[1]),
@@ -103,7 +103,7 @@ end
 
 # Simplex, dense, CPU, Float32
 push!(SIMPLEX_METHODS, METHOD(
-    "simplex (CPU, F32)",
+    "simplex (CPU, FP32)",
     F64toF32,
     (P, nthreads) -> b_dense(P, simplex_proj!, nthreads),
     (P, nthreads) -> simplex_proj(P, nchunks=nthreads)[2:3],
@@ -115,7 +115,7 @@ push!(SIMPLEX_METHODS, METHOD(
 # Simplex, dense, GPU, Float32
 if USECUDA > 0
     push!(SIMPLEX_METHODS, METHOD(
-        "simplex (GPU)",
+        "simplex (GPU, FP32)",
         P -> CPUtoGPU(P, Float32),
         (P, nthreads) -> b_cuda(P, simplex_proj!, nthreads),
         (P, nthreads) -> simplex_proj(P)[2:3],

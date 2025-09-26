@@ -70,7 +70,7 @@ end
 CQK_METHODS = METHOD[]
 
 push!(CQK_METHODS, METHOD(
-    "cqk (F64)",
+    "cqk (FP64)",
     identity,
     (P, nthreads) -> b_dense(P, cqk!, nthreads),
     (P, nthreads) -> cqk(P, nchunks=nthreads)[2:3],
@@ -80,7 +80,7 @@ push!(CQK_METHODS, METHOD(
 )
 
 push!(CQK_METHODS, METHOD(
-    "cqn (F64)",
+    "cqn (FP64)",
     identity,
     (P, nthreads) -> b_cms_cqn(P, nthreads),
     (P, nthreads) -> cms_cqn(P)[2:3],
@@ -102,7 +102,7 @@ if USECUDA > 32
 end
 
 push!(CQK_METHODS, METHOD(
-    "cqk (CPU, F32)",
+    "cqk (CPU, FP32)",
     F64toF32,
     (P, nthreads) -> b_dense(P, cqk!, nthreads),
     (P, nthreads) -> cqk(P, nchunks=nthreads)[2:3],

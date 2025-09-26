@@ -16,6 +16,25 @@ using SparseArrays
 using ThreadPinning
 pinthreads(:cores)
 
+function get_parameters()
+    s = ArgParseSettings()
+    @add_arg_table s begin
+        "--cuda"
+        arg_type = Int
+        default = 0
+        help = "benchcmark a CUDA GPU (32 for 32bit only or 64 for 32 and 64 bits)"
+        "--nreps"
+        arg_type = Int
+        default = 1
+        help = "number of problems to solve"
+        "--continue"
+        arg_type = Bool
+        default = false
+        help = "continue previous tests?"
+    end
+    return parse_args(s)
+end
+
 # Functions to convert data
 include("convert.jl")
 
@@ -217,25 +236,6 @@ function fnanosec(ns::Number)
     else
         return @sprintf("%7.4g  s", ns / 1_000_000_000)
     end
-end
-
-function get_parameters()
-    s = ArgParseSettings()
-    @add_arg_table s begin
-        "--cuda"
-        arg_type = Int
-        default = 0
-        help = "benchcmark a CUDA GPU (32 for 32bit only or 64 for 32 and 64 bits)"
-        "--nreps"
-        arg_type = Int
-        default = 1
-        help = "number of problems to solve"
-        "--continue"
-        arg_type = Bool
-        default = false
-        help = "continue previous tests?"
-    end
-    return parse_args(s)
 end
 
 function print_test_header(title)

@@ -20,7 +20,7 @@ l1BALL_METHODS = METHOD[]
 
 # Simplex, dense, CPU, Float64
 push!(l1BALL_METHODS, METHOD(
-    "l1ball (F64)",
+    "l1ball (FP64)",
     identity,
     (P, nthreads) -> b_dense(P, l1ball_proj!, nthreads),
     (P, nthreads) -> l1ball_proj(P, nchunks=nthreads)[2:3],
@@ -31,7 +31,7 @@ push!(l1BALL_METHODS, METHOD(
 
 # Simplex, sparse, CPU, Float64
 push!(l1BALL_METHODS, METHOD(
-    "sparse l1ball (F64)",
+    "sparse l1ball (FP64)",
     identity,
     (P, nthreads) -> b_sparse(P, spl1ball_proj, nthreads),
     (P, nthreads) -> spl1ball_proj(P, nchunks=nthreads)[2:3],
@@ -56,7 +56,7 @@ push!(l1BALL_METHODS, METHOD(
 # Simplex, dense, GPU, Float64
 if USECUDA > 32
     push!(l1BALL_METHODS, METHOD(
-        "l1ball (GPU)",
+        "l1ball (GPU, FP64)",
         P -> CPUtoGPU(P, Float64),
         (P, nthreads) -> b_cuda(P, l1ball_proj!, nthreads),
         (P, nthreads) -> l1ball_proj(P)[2:3],
@@ -68,7 +68,7 @@ end
 
 # Simplex, dense, CPU, Float32
 push!(l1BALL_METHODS, METHOD(
-    "l1ball (CPU, F32)",
+    "l1ball (CPU, FP32)",
     F64toF32,
     (P, nthreads) -> b_dense(P, l1ball_proj!, nthreads),
     (P, nthreads) -> l1ball_proj(P, nchunks=nthreads)[2:3],
@@ -80,7 +80,7 @@ push!(l1BALL_METHODS, METHOD(
 # Simplex, dense, GPU, Float32
 if USECUDA > 0
     push!(l1BALL_METHODS, METHOD(
-        "l1ball (GPU)",
+        "l1ball (GPU, FP32)",
         P -> CPUtoGPU(P, Float32),
         (P, nthreads) -> b_cuda(P, l1ball_proj!, nthreads),
         (P, nthreads) -> l1ball_proj(P)[2:3],
