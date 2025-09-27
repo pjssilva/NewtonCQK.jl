@@ -381,6 +381,7 @@ int newton(cqk_problem *restrict p, double *x0, double *x) {
     
     lambda = initial_multiplier(p, x0, slopes, &sum_slopes, ind);
     newton_phi(p, n, ind, r, slopes, lambda, x, &phi, &deriv);
+    printf("phi = %e, phi1 = %e\n", phi, deriv);
     DEBUG_PRINT("Initial Lambda=%e, phi - r = %e\n", lambda, phi);
 
     /* Iteration */
@@ -426,11 +427,13 @@ int newton(cqk_problem *restrict p, double *x0, double *x) {
                     interval.negPhi = phi;
                     newton_phi(p, n, ind, r, slopes, interval.pos_lambda, 
                                x, &interval.posPhi, &deriv);
+                    printf("phi = %e, phi1 = %e\n", phi, deriv);
                 }
                 else {
                     interval.posPhi = phi;
                     newton_phi(p, n, ind, r, slopes, interval.neg_lambda,
                                x, &interval.negPhi, &deriv);
+                    printf("phi = %e, phi1 = %e\n", phi, deriv);
                 }
                 /* Computing newton_phi is a O(n) operation. Count it
                    as an extra iteration. */
@@ -482,6 +485,7 @@ int newton(cqk_problem *restrict p, double *x0, double *x) {
 
         /* Compute the function values and derivatives */
         newton_phi(p, n, ind, r, slopes, lambda, x, &phi, &deriv);
+        printf("phi = %e, phi1 = %e\n", phi, deriv);
         DEBUG_PRINT("Iter %d - lambda = %e, phi - r = %e\n", 
                     n_iters, lambda, phi);
         ++n_iters;
