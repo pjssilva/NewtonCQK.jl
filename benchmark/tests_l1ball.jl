@@ -40,7 +40,7 @@ push!(
         (P, nthreads) -> b_sparse(P, spl1ball_proj, nthreads),
         (P, nthreads) -> spl1ball_proj(P; nchunks=nthreads)[2:3],
         (P, nthreads) -> l1ball_infeas(spl1ball_proj(P; nchunks=nthreads)[1]),
-        (P, nthreads) -> Inf
+        (P, nthreads) -> reldiff_sol(P, l1ball_proj)
     )
 )
 
@@ -57,7 +57,7 @@ push!(
         else
             l1ball_infeas(l1ball_condat_p(P, 1.0, nthreads, 0.001))
         end,
-        (P, nthreads) -> Inf
+        (P, nthreads) -> reldiff_sol(P, l1ball_proj)
     )
 )
 
@@ -85,7 +85,7 @@ push!(
         (P, nthreads) -> b_dense(P, l1ball_proj!, nthreads),
         (P, nthreads) -> l1ball_proj(P; nchunks=nthreads)[2:3],
         (P, nthreads) -> l1ball_infeas(l1ball_proj(P; nchunks=nthreads)[1]),
-        (P, nthreads) -> Inf
+        (P, nthreads) -> reldiff_sol(P, l1ball_proj)
     )
 )
 

@@ -64,7 +64,7 @@ push!(
         (P, nthreads) -> b_sparse(P, spsimplex_proj, nthreads),
         (P, nthreads) -> spsimplex_proj(P; nchunks=nthreads)[2:3],
         (P, nthreads) -> simplex_infeas(spsimplex_proj(P; nchunks=nthreads)[1]),
-        (P, nthreads) -> Inf
+        (P, nthreads) -> reldiff_sol(P, simplex_proj) 
     )
 )
 
@@ -77,7 +77,7 @@ push!(
         (P, nthreads) -> b_Ccondat(P, nthreads),
         (P, nthreads) -> (-1, :solved),
         (P, nthreads) -> simplex_infeas(condat_proj(P)),
-        (P, nthreads) -> Inf
+        (P, nthreads) -> reldiff_sol(P, simplex_proj)
     )
 )
 
@@ -94,7 +94,7 @@ push!(
         else
             simplex_infeas(condat_p(P, 1.0, nthreads, 0.001))
         end,
-        (P, nthreads) -> Inf
+        (P, nthreads) -> reldiff_sol(P, simplex_proj)
     )
 )
 
@@ -122,7 +122,7 @@ push!(
         (P, nthreads) -> b_dense(P, simplex_proj!, nthreads),
         (P, nthreads) -> simplex_proj(P; nchunks=nthreads)[2:3],
         (P, nthreads) -> simplex_infeas(simplex_proj(P; nchunks=nthreads)[1]),
-        (P, nthreads) -> Inf
+        (P, nthreads) -> reldiff_sol(P, simplex_proj)
     )
 )
 

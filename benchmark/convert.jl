@@ -23,7 +23,7 @@ function GPUtoCPU(P::CQKProblem, T::DataType)
         Vector(T.(P.u))
     )
 end
-function GPUtoCPU(P::CuVector, T::DataType)
+function GPUtoCPU(P::Union{CuVector,Vector}, T::DataType)
     return Vector(T.(P))
 end
 
