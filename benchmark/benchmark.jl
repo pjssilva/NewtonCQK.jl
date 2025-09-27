@@ -228,10 +228,10 @@ function fnanosec(ns::Number)
 end
 
 function print_test_header(title)
-    format = "\n$(repeat('=',39)) %s20 $(repeat('=',39))\n\n"
-    @printf(format, title)
+    print("\n$title ")
+    print( "="^(98 - length(title )- 1))
     @printf(
-        "%12s  %5s  %3s  %2s  %23s  %3s  %8s  %10s  %7s  %s\n",
+        "\n\n%12s  %5s  %3s  %2s  %23s  %3s  %8s  %10s  %7s  %s\n",
         "Test",
         "n",
         "id",
@@ -243,7 +243,7 @@ function print_test_header(title)
         "infeas",
         "rel dif"
     )
-    println('-'^98)
+    return println('-'^98)
 end
 
 function print_test(p, id, m, nthreads, iter, status, time, infeas, extra_info)
@@ -295,16 +295,16 @@ function main(args)
     output = "results.jld2"
     results = DataFrame(
         [
-            "Instance"=>String[];
-            "n"=>Int64[];
-            "id"=>Int64[];
-            "Algorithm"=>String[];
-            "threads"=>Int64[];
-            "iter"=>Int64[];
-            "st"=>[];
-            "time"=>Float64[];
-            "infeas"=>Float64[];
-            "extra_info"=>Float64[]
+            "Instance" => String[]
+            "n" => Int64[]
+            "id" => Int64[]
+            "Algorithm" => String[]
+            "threads" => Int64[]
+            "iter" => Int64[]
+            "st" => []
+            "time" => Float64[]
+            "infeas" => Float64[]
+            "extra_info" => Float64[]
         ]
     )
 
@@ -339,15 +339,15 @@ function main(args)
                         iter, status = m.it_st(P, nthreads)
 
                         row = [
-                            p.name;
-                            p.n;
-                            id;
-                            m.name;
-                            nthreads;
-                            iter;
-                            status;
-                            time;
-                            infeas;
+                            p.name
+                            p.n
+                            id
+                            m.name
+                            nthreads
+                            iter
+                            status
+                            time
+                            infeas
                             extra_info
                         ]
                         push!(results, row)
@@ -362,7 +362,7 @@ function main(args)
                 jldsave(output; results)
             end
 
-            println(repeat('-', 95))
+            println('-'^98)
         end
     end
 
