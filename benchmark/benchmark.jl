@@ -228,7 +228,7 @@ function fnanosec(ns::Number)
 end
 
 function print_test_header(title)
-    println("\n$(repeat('=',10)) $(title) $(repeat('=',10))\n")
+    @printf("\n$(repeat('=',39)) %s20 $(repeat('=',39))\n\n", title)
     @printf(
         "%12s  %5s  %3s  %2s  %23s  %3s  %8s  %10s  %7s  %s\n",
         "Test",
@@ -242,7 +242,7 @@ function print_test_header(title)
         "infeas",
         "rel dif"
     )
-    println(repeat('-', 95))
+    println('-'^98)
 end
 
 function print_test(p, id, m, nthreads, iter, status, time, infeas, extra_info)
