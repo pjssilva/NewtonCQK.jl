@@ -22,7 +22,7 @@ l1BALL_METHODS = METHOD[]
 push!(
     l1BALL_METHODS,
     METHOD(
-        "l1ball (FP64)",
+        "l1ball (CPU, FP64)",
         identity,
         (P, nthreads) -> b_dense(P, l1ball_proj!, nthreads),
         (P, nthreads) -> l1ball_proj(P; nchunks=nthreads)[2:3],
@@ -35,7 +35,7 @@ push!(
 push!(
     l1BALL_METHODS,
     METHOD(
-        "sparse l1ball (FP64)",
+        "sp l1ball (CPU, FP64)",
         identity,
         (P, nthreads) -> b_sparse(P, spl1ball_proj, nthreads),
         (P, nthreads) -> spl1ball_proj(P; nchunks=nthreads)[2:3],

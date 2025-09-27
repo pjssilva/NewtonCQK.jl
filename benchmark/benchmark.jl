@@ -230,7 +230,7 @@ end
 function print_test_header(title)
     println("\n$(repeat('=',10)) $(title) $(repeat('=',10))\n")
     @printf(
-        "%12s  %5s  %3s  %2s  %20s  %3s  %8s  %10s  %7s  %s\n",
+        "%12s  %5s  %3s  %2s  %23s  %3s  %8s  %10s  %7s  %s\n",
         "Test",
         "n",
         "id",
@@ -247,7 +247,7 @@ end
 
 function print_test(p, id, m, nthreads, iter, status, time, infeas, extra_info)
     @printf(
-        "%12s  %5.0e  %3d  %2d  %20s  %3d  %8s  %10s  %7.1e  %7.1e\n",
+        "%12s  %5.0e  %3d  %2d  %23s  %3d  %8s  %10s  %7.1e  %7.1e\n",
         p.name,
         p.n,
         id,
@@ -270,7 +270,7 @@ function executed(results, p, id, m, nthreads)
         ]
     )
         @printf(
-            "%12s  %5.0e  %3d  %2d  %20s already executed. Skipping...\n",
+            "%12s  %5.0e  %3d  %2d  %23s already executed. Skipping...\n",
             p.name,
             p.n,
             id,

@@ -46,7 +46,7 @@ SIMPLEX_METHODS = METHOD[]
 push!(
     SIMPLEX_METHODS,
     METHOD(
-        "simplex (FP64)",
+        "simplex (CPU, FP64)",
         identity,
         (P, nthreads) -> b_dense(P, simplex_proj!, nthreads),
         (P, nthreads) -> simplex_proj(P; nchunks=nthreads)[2:3],
@@ -59,7 +59,7 @@ push!(
 push!(
     SIMPLEX_METHODS,
     METHOD(
-        "sparse simplex (FP64)",
+        "sp simplex (CPU, FP64)",
         identity,
         (P, nthreads) -> b_sparse(P, spsimplex_proj, nthreads),
         (P, nthreads) -> spsimplex_proj(P; nchunks=nthreads)[2:3],
