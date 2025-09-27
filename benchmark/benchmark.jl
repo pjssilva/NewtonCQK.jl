@@ -228,7 +228,8 @@ function fnanosec(ns::Number)
 end
 
 function print_test_header(title)
-    @printf("\n$(repeat('=',39)) %s20 $(repeat('=',39))\n\n", title)
+    format = "\n$(repeat('=',39)) %s20 $(repeat('=',39))\n\n"
+    @printf(format, title)
     @printf(
         "%12s  %5s  %3s  %2s  %23s  %3s  %8s  %10s  %7s  %s\n",
         "Test",
