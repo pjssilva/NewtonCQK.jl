@@ -61,7 +61,7 @@ function wcheckL(
     s2::Float64,
     data::Array{Float64,1},
     w::Array{Float64,1},
-    b::Real,
+    b::Real
 )::AbstractVector
     let
         pivot = (s1 - b) / s2

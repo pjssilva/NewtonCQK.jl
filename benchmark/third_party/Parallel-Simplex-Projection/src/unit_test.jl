@@ -35,12 +35,12 @@ function sortscan_unit_test(toler::Float64=10^(-7))
     end
     println(
         "Number of instances having error larger than tolerance for sortscan_p: ",
-        numer_extoler_1,
+        numer_extoler_1
     )
     println("Average errors for sortscan_p: ", acculumate_error_1)
     println(
         "Number of instances having error larger than tolerance for sortPscan_p: ",
-        numer_extoler_2,
+        numer_extoler_2
     )
     return println("Average errors for sortPscan_p: ", acculumate_error_2)
 end

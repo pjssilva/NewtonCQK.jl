@@ -7,7 +7,7 @@ function CPUtoGPU(P::CQKProblem, T::DataType)
         T(P.r),
         CuVector(T.(P.l)),
         CuVector(T.(P.u))
-        )
+    )
 end
 function CPUtoGPU(P::Vector, T::DataType)
     return CuVector(T.(P))
@@ -21,7 +21,7 @@ function GPUtoCPU(P::CQKProblem, T::DataType)
         T(P.r),
         Vector(T.(P.l)),
         Vector(T.(P.u))
-        )
+    )
 end
 function GPUtoCPU(P::CuVector, T::DataType)
     return Vector(T.(P))

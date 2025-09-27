@@ -61,14 +61,14 @@ function parallel_prefixsum!(d::Array{Float64,1})::Array{Float64,1}
     k = ceil(Int, log2(lenght_cache))
     #broadcast stage
     for j in 1:k
-        @threads for i in (2^j):(2^j):min(lenght_cache, 2^k)
-            @inbounds d[i] = d[i - 2^(j - 1)] + d[i]
+        @threads for i in (2 ^ j):(2 ^ j):min(lenght_cache, 2 ^ k)
+            @inbounds d[i] = d[i - 2 ^ (j - 1)] + d[i]
         end
     end
     #reduce stage
     for j in (k - 1):-1:1
-        @threads for i in (3 * 2^(j - 1)):(2^j):min(lenght_cache, 2^k)
-            @inbounds d[i] = d[i - 2^(j - 1)] + d[i]
+        @threads for i in (3 * 2 ^ (j - 1)):(2 ^ j):min(lenght_cache, 2 ^ k)
+            @inbounds d[i] = d[i - 2 ^ (j - 1)] + d[i]
         end
     end
     #return prefix sum result
@@ -96,8 +96,8 @@ function parallel_partial_scan(d::Array{Float64,1}, b::Real=1)::Float64
     stop_layer = copy(k)
     #broadcast stage
     for j in 1:k
-        @threads for i in (2^j):(2^j):min(length_cache, 2^k)
-            @inbounds prefix_sum[i] += prefix_sum[i - 2^(j - 1)]
+        @threads for i in (2 ^ j):(2 ^ j):min(length_cache, 2 ^ k)
+            @inbounds prefix_sum[i] += prefix_sum[i - 2 ^ (j - 1)]
         end
         pivot = (prefix_sum[min(length_cache, 2^j)] - b) / min(length_cache, 2^j)
         if pivot >= d[min(length_cache, 2^j)]

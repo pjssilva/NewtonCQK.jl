@@ -14,7 +14,11 @@ CUDA version of `l1ball_proj!`. `sol` and `x` must be `CuVector`s. The
 projection is returned as the `CuVector` `sol`.
 """
 function l1ball_proj!(
-    sol::CuVector{T}, y::CuVector{T}; r=one(T), maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
+    sol::CuVector{T},
+    y::CuVector{T};
+    r=one(T),
+    maxiters=100,
+    x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat}
     absy = @~ abs.(y)
     if sum(absy) <= r

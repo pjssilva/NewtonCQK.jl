@@ -66,7 +66,7 @@ end
 #calculate results
 res1 = average_filter();
 #generate (2.2n)^(2/3)
-res = (10^6):(5 * 10^5):(10^7)
+res = (10 ^ 6):(5 * 10 ^ 5):(10 ^ 7)
 res2 = zeros(19)
 for i in 1:19
     res2[i] = (2.2 * res[i])^(2 / 3)

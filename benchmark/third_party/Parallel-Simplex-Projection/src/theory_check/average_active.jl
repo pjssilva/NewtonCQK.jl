@@ -62,7 +62,7 @@ end
 #result for average number of active terms
 res1 = average_active();
 #value of sqrt(2n)
-res = (10^6):(5 * 10^5):(10^7)
+res = (10 ^ 6):(5 * 10 ^ 5):(10 ^ 7)
 res2 = zeros(19)
 for i in 1:19
     res2[i] = (2res[i])^(0.5)

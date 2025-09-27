@@ -54,7 +54,7 @@ struct METHOD
     it_st::Function         # function that returns #iterations and status
     infeas::Function        # function that returns the infeasibility
     extra_info::Function    # extra info; for GPU algorithms, may be used to
-                            # compute the relative error of the solution
+    # compute the relative error of the solution
 end
 
 # Structure that match methods and instances
@@ -95,16 +95,16 @@ include(
         "src",
         "simplex_and_l1ball",
         "simplex_wrap.jl"
-    ),
+    )
 )
 include(
-joinpath(
+    joinpath(
         "third_party",
         "Parallel-Simplex-Projection",
         "src",
         "simplex_and_l1ball",
         "l1ball_wrap.jl"
-    ),
+    )
 )
 include(joinpath("third_party", "quadratic_knapsack_source", "cqn_interface.jl"))
 
@@ -179,42 +179,31 @@ end
 
 # Dense solution
 function b_dense(
-    P::Union{CQKProblem{T,V},V},
-    alg,
-    nthreads;
-    x0=T[]
+    P::Union{CQKProblem{T,V},V}, alg, nthreads; x0=T[]
 ) where {T<:AbstractFloat,V<:Vector{T}}
     sol = similar(ref_obj(P))
     chunks = initialize_chunks(length(sol); nchunks=nthreads)
-    b = @benchmarkable $alg($sol, $P, chunks=$chunks, x0=$x0)
+    b = @benchmarkable $alg($sol, $P, chunks=($chunks), x0=($x0))
     time = estimatetime(b)
     return time
 end
 
 # Sparse solution
-function b_sparse(
-    P::Vector{T},
-    alg,
-    nthreads;
-    x0=T[]
-) where {T<:AbstractFloat}
+function b_sparse(P::Vector{T}, alg, nthreads; x0=T[]) where {T<:AbstractFloat}
     chunks = initialize_chunks(length(P); nchunks=nthreads)
-    b = @benchmarkable $alg($P, chunks=$chunks, x0=$x0)
+    b = @benchmarkable $alg($P, chunks=($chunks), x0=($x0))
     time = estimatetime(b)
     return time
 end
 
 # CUDA
 function b_cuda(
-    P::Union{CQKProblem{T,V},V},
-    alg,
-    nthreads;
-    x0=CuVector{T}(undef, 0)
+    P::Union{CQKProblem{T,V},V}, alg, nthreads; x0=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat,V<:CuVector{T}}
     if nthreads == 1
         unpinthreads()
         sol = similar(ref_obj(P))
-        b = @benchmarkable CUDA.@sync $alg($sol, $P, x0=$x0)
+        b = @benchmarkable CUDA.@sync $alg($sol, $P, x0=($x0))
         time = estimatetime(b)
         pinthreads(:cores)
         return time
@@ -240,31 +229,54 @@ end
 
 function print_test_header(title)
     println("\n$(repeat('=',10)) $(title) $(repeat('=',10))\n")
-    @printf("%12s  %5s  %3s  %2s  %20s  %3s  %8s  %10s  %7s  %s\n",
-            "Test", "n", "id", "th", "algorithm", "it", "st", "time", "infeas", "rel dif"
-            )
-    println(repeat('-',95))
+    @printf(
+        "%12s  %5s  %3s  %2s  %20s  %3s  %8s  %10s  %7s  %s\n",
+        "Test",
+        "n",
+        "id",
+        "th",
+        "algorithm",
+        "it",
+        "st",
+        "time",
+        "infeas",
+        "rel dif"
+    )
+    println(repeat('-', 95))
 end
 
 function print_test(p, id, m, nthreads, iter, status, time, infeas, extra_info)
-    @printf("%12s  %5.0e  %3d  %2d  %20s  %3d  %8s  %10s  %7.1e  %7.1e\n",
-            p.name, p.n, id, nthreads,
-            m.name, iter, status,
-            fnanosec(time), infeas, extra_info
-            )
+    @printf(
+        "%12s  %5.0e  %3d  %2d  %20s  %3d  %8s  %10s  %7.1e  %7.1e\n",
+        p.name,
+        p.n,
+        id,
+        nthreads,
+        m.name,
+        iter,
+        status,
+        fnanosec(time),
+        infeas,
+        extra_info
+    )
 end
 
 # Has the test already been run?
 function executed(results, p, id, m, nthreads)
-    if !isempty(results[
-        (results.Instance .== p.name) .&
-        (results.n .== p.n) .&
-        (results.id .== id) .&
-        (results.Algorithm .== m.name) .&
-        (results.threads .== nthreads), :
-        ])
-        @printf("%12s  %5.0e  %3d  %2d  %20s already executed. Skipping...\n",
-                    p.name, p.n, id, nthreads, m.name)
+    if !isempty(
+        results[
+            (results.Instance .== p.name) .& (results.n .== p.n) .& (results.id .== id) .& (results.Algorithm .== m.name) .& (results.threads .== nthreads),
+            :
+        ]
+    )
+        @printf(
+            "%12s  %5.0e  %3d  %2d  %20s already executed. Skipping...\n",
+            p.name,
+            p.n,
+            id,
+            nthreads,
+            m.name
+        )
         return true
     end
     return false
@@ -280,18 +292,20 @@ function main(args)
 
     # Output DataFrame / file
     output = "results.jld2"
-    results = DataFrame([
-        "Instance"=>String[];
-        "n"=>Int64[];
-        "id"=>Int64[];
-        "Algorithm"=>String[];
-        "threads"=>Int64[];
-        "iter"=>Int64[];
-        "st"=>[];
-        "time"=>Float64[];
-        "infeas"=>Float64[];
-        "extra_info"=>Float64[]
-    ])
+    results = DataFrame(
+        [
+            "Instance"=>String[];
+            "n"=>Int64[];
+            "id"=>Int64[];
+            "Algorithm"=>String[];
+            "threads"=>Int64[];
+            "iter"=>Int64[];
+            "st"=>[];
+            "time"=>Float64[];
+            "infeas"=>Float64[];
+            "extra_info"=>Float64[]
+        ]
+    )
 
     if opts["continue"] && isfile(output)
         results = jldopen(output, "r")["results"]
@@ -323,11 +337,23 @@ function main(args)
                         extra_info = m.extra_info(P, nthreads)
                         iter, status = m.it_st(P, nthreads)
 
-                        row = [p.name; p.n; id; m.name; nthreads; iter; status;
-                               time; infeas; extra_info]
+                        row = [
+                            p.name;
+                            p.n;
+                            id;
+                            m.name;
+                            nthreads;
+                            iter;
+                            status;
+                            time;
+                            infeas;
+                            extra_info
+                        ]
                         push!(results, row)
 
-                        print_test(p, id, m, nthreads, iter, status, time, infeas, extra_info)
+                        print_test(
+                            p, id, m, nthreads, iter, status, time, infeas, extra_info
+                        )
                     end
                 end
 
@@ -335,7 +361,7 @@ function main(args)
                 jldsave(output; results)
             end
 
-            println(repeat('-',95))
+            println(repeat('-', 95))
         end
     end
 

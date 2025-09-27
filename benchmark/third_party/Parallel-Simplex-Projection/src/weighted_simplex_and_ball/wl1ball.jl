@@ -64,13 +64,13 @@ function parallel_prefixsum!(y::Array{Float64,1})
     l = length(y)
     k = ceil(Int, log2(l))
     for j in 1:k
-        @threads for i in (2^j):(2^j):min(l, 2^k)
-            @inbounds y[i] = y[i - 2^(j - 1)] + y[i]
+        @threads for i in (2 ^ j):(2 ^ j):min(l, 2 ^ k)
+            @inbounds y[i] = y[i - 2 ^ (j - 1)] + y[i]
         end
     end
     for j in (k - 1):-1:1
-        @threads for i in (3 * 2^(j - 1)):(2^j):min(l, 2^k)
-            @inbounds y[i] = y[i - 2^(j - 1)] + y[i]
+        @threads for i in (3 * 2 ^ (j - 1)):(2 ^ j):min(l, 2 ^ k)
+            @inbounds y[i] = y[i - 2 ^ (j - 1)] + y[i]
         end
     end
     return y
@@ -267,7 +267,7 @@ function wcheckL_ball(
     d::Array{Float64,1},
     data::Array{Float64,1},
     w::Array{Float64,1},
-    b::Real,
+    b::Real
 )::AbstractVector
     let
         pivot = (s1 - b) / s2
@@ -398,7 +398,7 @@ function wcheckL_ball_p(
     s2::Float64,
     data::Array{Float64,1},
     w::Array{Float64,1},
-    b::Real,
+    b::Real
 )::AbstractVector
     let
         pivot = (s1 - b) / s2

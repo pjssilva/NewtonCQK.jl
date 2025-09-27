@@ -89,9 +89,7 @@ function cucqk_newton(
             cucqk_init, .+, P.d, P.a, P.b, P.l, P.u, x0; init=(T0, T0, T0)
         )
         if q == T0
-            s, q = mapreduce(
-                cucqk_init, .+, P.d, P.a, P.b, P.l, P.u; init=(T0, T0)
-            )
+            s, q = mapreduce(cucqk_init, .+, P.d, P.a, P.b, P.l, P.u; init=(T0, T0))
             λ = (P.r - s) / q
         else
             λ = (P.r + r_aux - s) / q
@@ -207,7 +205,10 @@ end
 CUDA version of `cqk!`. `sol` and `x0` must be `CuVector`'s.
 """
 function cqk!(
-    sol::CuVector{T}, P::CQKProblem{T,V}; maxiters=100, x0::CuVector{T}=CuVector{T}(undef, 0)
+    sol::CuVector{T},
+    P::CQKProblem{T,V};
+    maxiters=100,
+    x0::CuVector{T}=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat,V<:CuVector{T}}
     λ, iter, flag = cucqk_newton(P, x0, sol, maxiters)
 

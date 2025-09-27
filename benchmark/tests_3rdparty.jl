@@ -14,8 +14,8 @@ include(
         "Parallel-Simplex-Projection",
         "src",
         "simplex_and_l1ball",
-        "simplex_wrap.jl",
-    ),
+        "simplex_wrap.jl"
+    )
 )
 include(joinpath("third_party", "quadratic_knapsack_source", "cqn_interface.jl"))
 
