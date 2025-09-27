@@ -1,3 +1,5 @@
+using JLD2
+
 #################################
 # Test classes and aux functions
 #################################
@@ -14,6 +16,7 @@ function CQK_uncorr(n)
     return CQKProblem(d, a, b, r, l, u)
 end
 
+countwcorr = 0
 function CQK_wcorr(n)
     b = rand(Uniform(10,25), n)
     d = similar(b)
@@ -25,7 +28,9 @@ function CQK_wcorr(n)
     l = min.(r1, r2)
     u = max.(r1, r2)
     r = rand(Uniform(dot(b,l), dot(b,u)))
-    return CQKProblem(d, a, b, r, l, u)
+    p = CQKProblem(d, a, b, r, l, u)
+    save("wcorr_$countwcorr.jld2", "p", p)
+    return p
 end
 
 function CQK_corr(n)

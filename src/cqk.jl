@@ -274,7 +274,6 @@ function cqk_newton(
         φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
         φ_minus_r -= r
         abs_φ += abs(r)
-        @show φ_minus_r, φ′, abs_φ
 
         # Stop if φ-r ≈ 0
         if abs(φ_minus_r) < eps(T)^0.75 * abs_φ
