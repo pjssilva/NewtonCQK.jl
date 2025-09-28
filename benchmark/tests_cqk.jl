@@ -72,7 +72,7 @@ CQK_METHODS = METHOD[]
 push!(
     CQK_METHODS,
     METHOD(
-        "cqk (FP64)",
+        "cqk (CPU, FP64)",
         identity,
         (P, nthreads) -> b_dense(P, cqk!, nthreads),
         (P, nthreads) -> cqk(P; nchunks=nthreads)[2:3],
@@ -84,7 +84,7 @@ push!(
 push!(
     CQK_METHODS,
     METHOD(
-        "cqn (FP64)",
+        "cqn",
         identity,
         (P, nthreads) -> b_cms_cqn(P, nthreads),
         (P, nthreads) -> cms_cqn(P)[2:3],
