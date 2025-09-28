@@ -308,7 +308,9 @@ function main(args)
     )
 
     if opts["continue"] && isfile(output)
-        results = jldopen(output, "r")["results"]
+        jld2file = jldopen(output, "r")
+        results = read(jld2file, "results")
+        close(jld2file)
     end
 
     for test in TESTS
