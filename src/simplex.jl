@@ -278,9 +278,10 @@ function simplex_newton(
     chunks = compress_chunks(chunks)
 
     # Newton loop
-    iter = 1
+    iter = 0
     flag = :max_iter
     while (iter < maxiters)
+        iter += 1
         δ = (φ - r) / φ′
         old_λ = λ
         λ -= δ
@@ -289,7 +290,6 @@ function simplex_newton(
             flag = :solved
             break
         end
-        iter += 1
         # compute φ and φ' for the next iteration
         φ, φ′ = simplex_phi(y, λ, r, true, chunks)
         chunks = compress_chunks(chunks)

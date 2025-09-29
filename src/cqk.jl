@@ -268,8 +268,6 @@ function cqk_newton(
     # Newton loop
     iter = 0
     while (iter < maxiters)
-        iter += 1
-
         # Compute φ-r and φ'
         φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
         φ_minus_r -= r
@@ -298,6 +296,8 @@ function cqk_newton(
             flag = :solved
             break
         end
+
+        iter += 1
 
         if φ′ > T0
             δ = φ_minus_r / φ′

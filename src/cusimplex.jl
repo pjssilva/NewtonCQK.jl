@@ -41,6 +41,7 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
         φ, φ′ = let λ = λ
             mapreduce(y -> cusimplex_phi_step(y, λ), .+, y; init=(T0, T0))
         end
+        iter += 1
         δ = (φ - r) / φ′
         old_λ = λ
         λ -= δ
@@ -49,7 +50,6 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
             flag = :solved
             break
         end
-        iter += 1
     end
 
     return λ, iter, flag
