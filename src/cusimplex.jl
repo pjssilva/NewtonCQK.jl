@@ -22,7 +22,7 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
 
         if abs(λ) < eps(T)^0.75
             # y is the solution!
-            return T0, 0, :solved
+            return T0, 1, :solved
         end
     else
         sumy, len = mapreduce(cusimplex_init, .+, y, x0; init=(T0, T0))
@@ -35,7 +35,7 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
     end
 
     # Newton loop
-    iter = 0
+    iter = 1
     flag = :max_iter
     while (iter < maxiters)
         φ, φ′ = let λ = λ

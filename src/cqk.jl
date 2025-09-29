@@ -260,18 +260,20 @@ function cqk_newton(
 
     # q is Inf if data is inconsistent or an infeasibility was identified
     if isinf(q)
-        return 0, :invalid
+        return 1, :invalid
     end
 
     flag = :max_iter
 
     # Newton loop
-    iter = 0
+    iter = 1
     while (iter < maxiters)
         # Compute φ-r and φ'
         φ_minus_r, φ′, abs_φ = cqk_phi(P, x, λ, chunks)
         φ_minus_r -= r
         abs_φ += abs(r)
+
+        iter += 1
 
         # Stop if φ-r ≈ 0
         if abs(φ_minus_r) < eps(T)^0.75 * abs_φ
@@ -296,8 +298,6 @@ function cqk_newton(
             flag = :solved
             break
         end
-
-        iter += 1
 
         if φ′ > T0
             δ = φ_minus_r / φ′

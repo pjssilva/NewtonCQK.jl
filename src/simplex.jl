@@ -251,7 +251,7 @@ function simplex_newton(
         if abs(λ) < eps(T)^0.75 || isfeasible(total, r, y)
             # y is the solution!
             # iter = 0 indicates the solution need not be re-computed
-            return T0, 0, :solved
+            return T0, 1, :solved
         end
 
         φ, φ′ = simplex_phi(y, λ, r, true, chunks)
@@ -261,7 +261,7 @@ function simplex_newton(
         )
 
         if isfeasible(total, r, y)
-            return T0, 0, :solved
+            return T0, 1, :solved
         end
 
         if len > 0
@@ -278,10 +278,9 @@ function simplex_newton(
     chunks = compress_chunks(chunks)
 
     # Newton loop
-    iter = 0
+    iter = 1
     flag = :max_iter
     while (iter < maxiters)
-        iter += 1
         δ = (φ - r) / φ′
         old_λ = λ
         λ -= δ
@@ -292,6 +291,7 @@ function simplex_newton(
         end
         # compute φ and φ' for the next iteration
         φ, φ′ = simplex_phi(y, λ, r, true, chunks)
+        iter += 1
         chunks = compress_chunks(chunks)
     end
 
