@@ -221,7 +221,8 @@ function plot_speedup(
     alg;
     title="",
     legpos=:best,
-    minthreads=2
+    minthreads=2,
+    plot_basealg=true
 )
     @assert !isempty(inst) "inst must be non empty"
     @assert n > 0 "n must be > 0"
@@ -242,7 +243,12 @@ function plot_speedup(
     res = read_results("results.jld2")
 
     # initialize plot
-    fig = plot(; title=title, xlabel="number of threads", ylabel="relative speedup", legend=legpos)
+    fig = plot(; title=title,
+               xlabel="number of threads",
+               ylabel="relative speedup",
+               legend=legpos,
+               fontfamily="Computer Modern"
+          )
 
     maxth = 1
 
@@ -284,15 +290,16 @@ function plot_speedup(
     end
 
     # base algorithm
-    fig = plot!(
-        1:maxth,
-        fill(1.0, maxth);
-        label=alglabels[basealg],
-        markershape=:none,
-        ls=:dot,
-        lw=1
-    )
-
+    if plot_basealg
+        fig = plot!(
+            1:maxth,
+            fill(1.0, maxth);
+            label=alglabels[basealg],
+            markershape=:none,
+            ls=:dot,
+            lw=1
+        )
+    end
     savefig(fig, output)
     println("File $(output) was generated. Rename it if necessary.")
 end
@@ -308,7 +315,8 @@ function generate_all()
             n,
             base,
             ["cqk (CPU, FP64)"];
-            title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}")
+            title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}"),
+            plot_basealg=false
         )
     end
 
@@ -317,12 +325,13 @@ function generate_all()
     ###################
     base = "Condat C"
     for n in simplex_sizes, p in simplex_names
+        ptext = replace(p," " => "\\ ")
         plot_speedup(
             [p],
             n,
             base,
             ["simplex (CPU, FP64)", "sp simplex (CPU, FP64)", "P Condat (simplex)"];
-            title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(p)}"),
+            title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
             # include 1 thread, as the comparison is with Condat's C code
             minthreads=1
         )
