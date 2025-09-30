@@ -220,7 +220,8 @@ function plot_speedup(
     basealg,
     alg;
     title="",
-    legpos=:best
+    legpos=:best,
+    minthreads=2
 )
     @assert !isempty(inst) "inst must be non empty"
     @assert n > 0 "n must be > 0"
@@ -241,7 +242,9 @@ function plot_speedup(
     res = read_results("results.jld2")
 
     # initialize plot
-    fig = plot(; title=title, xlabel="number of threads", ylabel="relative speedup")
+    fig = plot(; title=title, xlabel="number of threads", ylabel="relative speedup", legend=legpos)
+
+    maxth = 1
 
     # plot speedup graph for each algorithm or instance
     for k in 1:max(length(alg), length(inst))
@@ -253,7 +256,7 @@ function plot_speedup(
             ii = inst[k]
             aa = alg[1]
         end
-        T = filter_results(res; instance=ii, n=n, minthreads=2, algorithm=aa)
+        T = filter_results(res; instance=ii, n=n, minthreads=minthreads, algorithm=aa)
         # base runtime
         bt = filter_results(res; instance=ii, n=n,
                             maxthreads=1, algorithm=basealg)
@@ -272,12 +275,24 @@ function plot_speedup(
             basetime ./ Float64.(T[:, :time]);
             label=(length(alg) > 1) ? alglabels[alg[k]] : instancelabels[inst[k]],
             xticks=(1:length(threads), threads),
-            legend=legpos,
             markershape=:diamond,
             markersize=4,
             lw=1
         )
+
+        maxth = max(maxth, length(threads))
     end
+
+    # base algorithm
+    fig = plot!(
+        1:maxth,
+        fill(1.0, maxth);
+        label=alglabels[basealg],
+        markershape=:none,
+        ls=:dot,
+        lw=1
+    )
+
     savefig(fig, output)
     println("File $(output) was generated. Rename it if necessary.")
 end
@@ -307,7 +322,9 @@ function generate_all()
             n,
             base,
             ["simplex (CPU, FP64)", "sp simplex (CPU, FP64)", "P Condat (simplex)"];
-            title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(p)}")
+            title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(p)}"),
+            # include 1 thread, as the comparison is with Condat's C code
+            minthreads=1
         )
     end
 end
