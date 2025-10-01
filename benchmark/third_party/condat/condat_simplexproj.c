@@ -82,8 +82,8 @@ We must have length>=1 and a>0.
 #include <time.h>
 #include <math.h>
 #include <string.h>
-#include <gsl/gsl_rng.h>
-#include <gsl/gsl_randist.h>
+// #include <gsl/gsl_rng.h>
+// #include <gsl/gsl_randist.h>
 
 #define datatype double /* type of the elements in y */
 
