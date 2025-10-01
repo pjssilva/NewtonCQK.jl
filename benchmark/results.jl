@@ -57,8 +57,15 @@ function read_results(filename)
 
     # consolidates runs
     gres = groupby(allres, [:Instance, :n, :threads, :Algorithm])
-    # median of runtimes, mean of infeasibilities
-    return combine(gres, [:time; :infeas] .=> [median; mean]; renamecols=false)
+
+    # mean of iter
+    # median of runtimes
+    # mean of infeasibilities
+    # solved problems count
+    return combine(gres,
+                   [:iter; :time; :infeas; :st] .=> [mean; median; mean; x -> count(x .== :solved)];
+                   renamecols=false
+                   )
 end
 
 function filter_results(allres;
@@ -69,7 +76,8 @@ function filter_results(allres;
         (n > 0 ? allres.n .== n : allres.n .>= 0) .&
         (allres.threads .>= minthreads) .&
         (allres.threads .<= maxthreads) .&
-        (!isempty(algorithm) ? allres.Algorithm .== algorithm : allres.Algorithm .>= "")
+        (!isempty(algorithm) ? allres.Algorithm .== algorithm : allres.Algorithm .>= "") .&
+        (allres.st .> 0)
         , :
     ]
 end
@@ -222,7 +230,9 @@ function plot_speedup(
     title="",
     legpos=:best,
     minthreads=2,
-    plot_basealg=true
+    plot_basealg=true,
+    output="",          # additional identifier for output files
+    algcuda=""
 )
     @assert !isempty(inst) "inst must be non empty"
     @assert n > 0 "n must be > 0"
@@ -235,11 +245,10 @@ function plot_speedup(
         mkdir("output")
     end
     if length(alg) > 1
-        output = "output/speedup_$(inst[1])_$(n).pdf"
+        outfile = "output/speedup_$(output)_$(inst[1])_$(n).pdf"
     else
-        output = "output/speedup_$(alg[1])_$(n).pdf"
+        outfile = "output/speedup_$(output)_$(alg[1])_$(n).pdf"
     end
-
     res = read_results("results.jld2")
 
     # initialize plot
@@ -263,6 +272,10 @@ function plot_speedup(
             aa = alg[1]
         end
         T = filter_results(res; instance=ii, n=n, minthreads=minthreads, algorithm=aa)
+        if isempty(T)
+            # none instance were solved!
+            return
+        end
         # base runtime
         bt = filter_results(res; instance=ii, n=n,
                             maxthreads=1, algorithm=basealg)
@@ -274,6 +287,7 @@ function plot_speedup(
 
         # distinct number of threads
         threads = Int64.(sort(unique(T.threads)))
+        maxth = max(maxth, length(threads))
 
         # add plot
         fig = plot!(
@@ -285,8 +299,23 @@ function plot_speedup(
             markersize=4,
             lw=1
         )
+    end
 
-        maxth = max(maxth, length(threads))
+    # cuda (only takes effect if plot is relative to algorithms)
+    if !isempty(algcuda) && (length(inst) == 1)
+        cudat = filter_results(res; instance=inst[1], n=n,
+                            maxthreads=1, algorithm=algcuda)
+        if !isempty(cudat)
+            cudatime = cudat[1,:time]
+            fig = plot!(
+                1:maxth,
+                fill(cudatime, maxth);
+                label=alglabels[algcuda],
+                markershape=:none,
+                ls=:dash,
+                lw=1
+            )
+        end
     end
 
     # base algorithm
@@ -300,8 +329,8 @@ function plot_speedup(
             lw=1
         )
     end
-    savefig(fig, output)
-    println("File $(output) was generated. Rename it if necessary.")
+    savefig(fig, outfile)
+    println("File $(outfile) was generated.")
 end
 
 function generate_all()
@@ -333,7 +362,8 @@ function generate_all()
             ["simplex (CPU, FP64)", "sp simplex (CPU, FP64)", "P Condat (simplex)"];
             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
             # include 1 thread, as the comparison is with Condat's C code
-            minthreads=1
+            minthreads=1,
+            #algcuda="simplex (GPU, FP64)"
         )
     end
 end
