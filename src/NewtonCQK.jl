@@ -11,7 +11,6 @@ using LinearAlgebra
 using Statistics
 using SparseArrays
 using Base.Threads
-using LoopVectorization
 using CUDA
 using LazyArrays
 
