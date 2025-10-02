@@ -55,7 +55,7 @@ CQK_sizes = [1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_0
 CQK_gen = [n -> CQK_uncorr(n), n -> CQK_wcorr(n), n -> CQK_corr(n)]
 
 unitsize64 = sizeof(CQK_uncorr(1))
-maxn = maxsize(unitsize64, USECUDA)
+maxn = maxsize(unitsize64, USECUDA) ÷ 2
 for i in eachindex(CQK_names), n in CQK_sizes
     if n > maxn
         @info "Problem size $n may not fit in RAM or GPU memory, skipping."

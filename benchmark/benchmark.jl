@@ -70,8 +70,8 @@ Computes the maximum problem size that fits both RAM and GPU memory.
 function maxsize(unitsize64, usecuda)
     ram_size = Int(Sys.total_memory())
     gpu_ram = usecuda > 0 ? CUDA.memory_info()[2] : Inf
-    half_mem = min(ram_size, gpu_ram)
-    return half_mem / unitsize64
+    base_mem = min(ram_size, gpu_ram) 
+    return base_mem / unitsize64
 end
 USECUDA = get_parameters()["cuda"]
 
@@ -115,9 +115,10 @@ include(joinpath("third_party", "quadratic_knapsack_source", "cqn_interface.jl")
 # CPU time
 function estimatetime(b)
     b.params.gctrial = false
+    b.params.gcsample = true
     b.params.evals = 1
-    b.params.samples = 1#00
-    b.params.seconds = 10.0
+    b.params.samples = 100
+    b.params.seconds = 2.0
     samples = run(b)
     return minimum(samples.times)
 end
@@ -129,8 +130,8 @@ function reldiff_sol(P, cpualg, altalg)
     cpu_sol = cpualg(cpu_P)[1]
     return norm(Vector(alt_sol) - cpu_sol) / norm(cpu_sol)
 end
-
 reldiff_sol(P, alg) = reldiff_sol(P, alg, alg)
+
 
 # Benchmark for Parallel Condat
 function b_Pcondat(P, serial_alg, parallel_alg, nthreads)

@@ -28,7 +28,7 @@ simplex_gen = [
 ]
 
 unitsize64 = sizeof(1.0)
-maxn = maxsize(unitsize64, USECUDA)
+maxn = maxsize(unitsize64, USECUDA) ÷ 8
 for i in eachindex(simplex_names), n in simplex_sizes
     if n > maxn
         @info "Problem size $n may not fit in RAM or GPU memory, skipping."
