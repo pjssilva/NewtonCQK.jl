@@ -114,10 +114,10 @@ include(joinpath("third_party", "quadratic_knapsack_source", "cqn_interface.jl")
 
 # CPU time
 function estimatetime(b)
-    b.params.gctrial = false
-    b.params.gcsample = true
+    b.params.gctrial = true
+    b.params.gcsample = false
     b.params.evals = 1
-    b.params.samples = 100
+    b.params.samples = 10000
     b.params.seconds = 2.0
     samples = run(b)
     return minimum(samples.times)
