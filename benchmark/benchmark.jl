@@ -2,6 +2,7 @@ using NewtonCQK
 
 using Printf
 using Random: Random
+Random.seed!(0)
 using LinearAlgebra
 using BenchmarkTools
 using ArgParse
@@ -13,8 +14,8 @@ using JLD2
 using CUDA
 using SparseArrays
 
-using ThreadPinning
-pinthreads(:cores)
+# using ThreadPinning
+# pinthreads(:cores)
 
 function get_parameters()
     s = ArgParseSettings()
@@ -286,7 +287,6 @@ end
 
 # Main function
 function main(args)
-    Random.seed!(0)
     nthreads = Threads.nthreads()
 
     # Get command line parameters

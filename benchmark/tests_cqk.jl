@@ -69,29 +69,31 @@ end
 ##############
 CQK_METHODS = METHOD[]
 
-push!(
-    CQK_METHODS,
-    METHOD(
-        "cqk (CPU, FP64)",
-        identity,
-        (P, nthreads) -> b_dense(P, cqk!, nthreads),
-        (P, nthreads) -> cqk(P; nchunks=nthreads)[2:3],
-        (P, nthreads) -> cqk_infeas(P, cqk(P; nchunks=nthreads)[1]),
-        (P, nthreads) -> Inf
+if USECUDA < 32 
+    push!(
+        CQK_METHODS,
+        METHOD(
+            "cqk (CPU, FP64)",
+            identity,
+            (P, nthreads) -> b_dense(P, cqk!, nthreads),
+            (P, nthreads) -> cqk(P; nchunks=nthreads)[2:3],
+            (P, nthreads) -> cqk_infeas(P, cqk(P; nchunks=nthreads)[1]),
+            (P, nthreads) -> Inf
+        )
     )
-)
 
-push!(
-    CQK_METHODS,
-    METHOD(
-        "cqn",
-        identity,
-        (P, nthreads) -> b_cms_cqn(P, nthreads),
-        (P, nthreads) -> cms_cqn(P)[2:3],
-        (P, nthreads) -> cqk_infeas(P, cms_cqn(P)[1]),
-        (P, nthreads) -> reldiff_sol(P, cqk, cms_cqn)
+    push!(
+        CQK_METHODS,
+        METHOD(
+            "cqn",
+            identity,
+            (P, nthreads) -> b_cms_cqn(P, nthreads),
+            (P, nthreads) -> cms_cqn(P)[2:3],
+            (P, nthreads) -> cqk_infeas(P, cms_cqn(P)[1]),
+            (P, nthreads) -> reldiff_sol(P, cqk, cms_cqn)
+        )
     )
-)
+end 
 
 if USECUDA > 32
     push!(
@@ -107,18 +109,19 @@ if USECUDA > 32
     )
 end
 
-push!(
-    CQK_METHODS,
-    METHOD(
-        "cqk (CPU, FP32)",
-        F64toF32,
-        (P, nthreads) -> b_dense(P, cqk!, nthreads),
-        (P, nthreads) -> cqk(P; nchunks=nthreads)[2:3],
-        (P, nthreads) -> cqk_infeas(P, cqk(P; nchunks=nthreads)[1]),
-        (P, nthreads) -> reldiff_sol(P, cqk)
+if USECUDA < 32
+    push!(
+        CQK_METHODS,
+        METHOD(
+            "cqk (CPU, FP32)",
+            F64toF32,
+            (P, nthreads) -> b_dense(P, cqk!, nthreads),
+            (P, nthreads) -> cqk(P; nchunks=nthreads)[2:3],
+            (P, nthreads) -> cqk_infeas(P, cqk(P; nchunks=nthreads)[1]),
+            (P, nthreads) -> reldiff_sol(P, cqk)
+        )
     )
-)
-if USECUDA > 0
+else
     push!(
         CQK_METHODS,
         METHOD(
