@@ -14,8 +14,8 @@ using JLD2
 using CUDA
 using SparseArrays
 
-# using ThreadPinning
-# pinthreads(:cores)
+using ThreadPinning
+pinthreads(:cores)
 
 function get_parameters()
     s = ArgParseSettings()
@@ -203,11 +203,11 @@ function b_cuda(
     P::Union{CQKProblem{T,V},V}, alg, nthreads; x0=CuVector{T}(undef, 0)
 ) where {T<:AbstractFloat,V<:CuVector{T}}
     if nthreads == 1
-        # unpinthreads()
+        unpinthreads()
         sol = similar(ref_obj(P))
         b = @benchmarkable CUDA.@sync $alg($sol, $P, x0=($x0))
         time = estimatetime(b)
-        # pinthreads(:cores)
+        pinthreads(:cores)
         return time
     else
         return Inf
