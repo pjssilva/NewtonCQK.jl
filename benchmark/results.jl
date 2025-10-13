@@ -47,25 +47,44 @@ instancelabels = Dict(
 )
 
 # read results in JLD2 file
-function read_results(filename)
-    @assert isfile(filename) "$(filename) file not found"
+function read_results(filenames)
+    if isa(filenames, String)
+        files = [filenames]
+    else
+        files = filenames
+    end
 
-    # read JLD2 file
-    jld2file = jldopen(filename, "r")
-    allres = read(jld2file, "results")
-    close(jld2file)
+    res = []
 
-    # consolidates runs
-    gres = groupby(allres, [:Instance, :n, :threads, :Algorithm])
+    for f in files
+        @assert isfile(f) "$(f) file not found"
 
-    # mean of iter
-    # median of runtimes
-    # mean of infeasibilities
-    # solved problems count
-    return combine(gres,
-                   [:iter; :time; :infeas; :st] .=> [mean; median; mean; x -> count(x .== :solved)];
-                   renamecols=false
-                   )
+        # read JLD2 file
+        jld2file = jldopen(f, "r")
+        allres = read(jld2file, "results")
+        close(jld2file)
+
+        # consolidates runs
+        gres = groupby(allres, [:Instance, :n, :threads, :Algorithm])
+
+        # mean of iter
+        # median of runtimes
+        # mean of infeasibilities
+        # solved problems count
+        if isempty(res)
+            res = combine(gres,
+                    [:iter; :time; :infeas; :st] .=> [mean; median; mean; x -> count(x .== :solved)];
+                    renamecols=false
+                    )
+        else
+            res = vcat(res, combine(gres,
+                    [:iter; :time; :infeas; :st] .=> [mean; median; mean; x -> count(x .== :solved)];
+                    renamecols=false
+                    ))
+        end
+    end
+
+    return res
 end
 
 function filter_results(allres;
@@ -232,7 +251,8 @@ function plot_speedup(
     minthreads=2,
     plot_basealg=true,
     output="",          # additional identifier for output files
-    algcuda=""
+    algcuda="",
+    filenames="results.jld2"
 )
     @assert !isempty(inst) "inst must be non empty"
     @assert n > 0 "n must be > 0"
@@ -249,7 +269,7 @@ function plot_speedup(
     else
         outfile = "output/speedup_$(output)_$(alg[1])_$(n).pdf"
     end
-    res = read_results("results.jld2")
+    res = read_results(filenames)
 
     # initialize plot
     fig = plot(; title=title,
@@ -345,7 +365,8 @@ function generate_all()
             base,
             ["cqk (CPU, FP64)"];
             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}"),
-            plot_basealg=false
+            plot_basealg=false,
+            filenames=["results.jld2", "results_cpu.jld2"]
         )
     end
 
@@ -363,7 +384,8 @@ function generate_all()
             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
             # include 1 thread, as the comparison is with Condat's C code
             minthreads=1,
-            #algcuda="simplex (GPU, FP64)"
+            #algcuda="simplex (GPU, FP64)",
+            filenames=["results.jld2", "results_cpu.jld2"]
         )
     end
 end
