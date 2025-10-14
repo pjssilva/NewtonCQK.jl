@@ -12,6 +12,8 @@ using Distributions
 using JLD2
 using CUDA
 using SparseArrays
+using Distances
+using UCIData
 
 # using ThreadPinning
 # pinthreads(:cores)
@@ -34,6 +36,9 @@ function get_parameters()
     end
     return parse_args(s)
 end
+
+# SVM
+include("tests_svm.jl")
 
 # Functions to convert data
 include("convert.jl")

@@ -197,7 +197,7 @@ int newton_projection_2(int n, double *restrict x0, double *restrict b,
  */
 int newton_cqn(int n, double *restrict d, double *restrict a,
     double *restrict b, double r, double *restrict low, double *restrict up,
-    double *x) {
+    double *x, double *restrict x0) {
 
     /* Copy problem data. */
     cqk_problem prob;
@@ -209,8 +209,7 @@ int newton_cqn(int n, double *restrict d, double *restrict a,
     prob.low = low;
     prob.up = up;
 
-    /* Project */
-    int res = newton(&prob, NULL, x);
+    int res = newton(&prob, x0, x);
 
     return res;
 }

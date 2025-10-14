@@ -88,7 +88,7 @@ function read_results(filenames)
 end
 
 function filter_results(allres;
-    instance="", n=0, minthreads=1, maxthreads=100, algorithm=""
+    instance="", n=0, minthreads=1, maxthreads=500, algorithm=""
 )
     return allres[
         (!isempty(instance) ? allres.Instance .== instance : allres.Instance .>= "") .&
@@ -106,7 +106,7 @@ end
 # n=0, threads=0 or, algs=[] indicate that no corresponding filter is applied
 # set latex=true to store formated numbers as strings (for LaTeX) and bold best values
 function matrix(
-    test_id; n=0, minthreads=1, maxthreads=100, algs=[], latex=true, bold=false
+    test_id; n=0, minthreads=1, maxthreads=500, algs=[], latex=true, bold=false
 )
     # read results
     allres = read_results("results.jld2")
@@ -167,7 +167,7 @@ function matrix(
 end
 
 # write LaTeX file of a table
-function tex_table(test_id; n=0, minthreads=1, maxthreads=100, algs=[], testname="")
+function tex_table(test_id; n=0, minthreads=1, maxthreads=500, algs=[], testname="")
     if !isdir("output")
         mkdir("output")
     end
@@ -199,7 +199,7 @@ function pp(
     test_id;
     n=0,
     minthreads=1,
-    maxthreads=100,
+    maxthreads=500,
     algs=[],
     title="CPU time (ms)",
     alglabels=String[]
