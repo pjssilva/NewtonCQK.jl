@@ -31,8 +31,16 @@ function get_parameters()
         help = "number of problems to solve"
         "--continue"
         arg_type = Bool
-        default = false
+        default = true
         help = "continue previous tests?"
+        "--random"
+        arg_type = Bool
+        default = true
+        help = "execute random tests?"
+        "--svm"
+        arg_type = Bool
+        default = true
+        help = "execute SVM tests?"
     end
     return parse_args(s)
 end
@@ -290,11 +298,8 @@ function executed(results, p, id, m, nthreads)
 end
 
 # Main function
-function main(args)
+function random_alltests(cont, nreps)
     nthreads = Threads.nthreads()
-
-    # Get command line parameters
-    opts = get_parameters()
 
     # Output DataFrame / file
     output = "results.jld2"
@@ -313,7 +318,7 @@ function main(args)
         ]
     )
 
-    if opts["continue"] && isfile(output)
+    if cont && isfile(output)
         jld2file = jldopen(output, "r")
         results = read(jld2file, "results")
         close(jld2file)
@@ -323,7 +328,7 @@ function main(args)
         for p in test.instances
             print_test_header(test.title)
 
-            for id in 1:opts["nreps"]
+            for id in 1:nreps
                 # Create the problem
                 origP = p.generate(p.n)
 
@@ -371,6 +376,24 @@ function main(args)
 
             println('-'^98)
         end
+    end
+end
+
+# Main function
+function main(args)
+    # Get command line parameters
+    opts = get_parameters()
+
+    if opts["random"]
+        # Random tests (CQK, simplex, l1ball) -> results.jld2
+        println("===================\nRANDOM\n===================")
+        random_alltests(opts["continue"], opts["nreps"])
+    end
+
+    if opts["svm"]
+        # SVM -> results_svm.jld2
+        println("===================\nSVM\n===================")
+        svm_alltests(opts["continue"])
     end
 
     return 0

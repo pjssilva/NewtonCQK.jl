@@ -83,12 +83,14 @@ function spg(n, f, g!, d!, pg_supnorm;
             break
         end
 
+        iter += 1
+
         # Compute direction
         d!(d, x, lambda, g)
 
         # Line search
         fxmax = maximum(lastf)
-        fx, lsflag = ls!(xnew, f, x, fxmax, g, d, eta)
+        fx, lsflag = ls!(xnew, f, x, fx, fxmax, g, d, eta)
 
         if !lsflag
             flag = :too_small_steplength
@@ -118,15 +120,13 @@ function spg(n, f, g!, d!, pg_supnorm;
             xbest .= x
             fbest = fx
         end
-
-        iter += 1
     end
 
     return x, iter, flag
 end
 
 # line search
-function ls!(xnew, f, x, fxmax, g, d, eta)
+function ls!(xnew, f, x, fx, fxmax, g, d, eta)
     gtd = dot(g, d)
 
     # initial steplength

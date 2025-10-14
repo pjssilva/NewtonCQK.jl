@@ -7,8 +7,6 @@ function svm_solve(
     @assert C > 0.0 throw(ArgumentError("C must be positive"))
     @assert !isempty(instance) throw(ArgumentError("instance must be provided"))
 
-    output = "results_svm.jld2"
-
     n = size(Z,2)
 
     # CQK for subproblems
@@ -28,23 +26,21 @@ function svm_solve(
 
     # Objective function
     function f(x)
-        return 0.5 * (x' * H(Z) * x) - sum(x)
+        return 0.5 * (x' * H(Z) * x) - sum(sign.(w) .* x)
     end
 
     # Gradient of objective function
     function g!(g, x)
-        g .= (H(Z) * x) .- 1.0
+        g .= (H(Z) * (sign.(w) .* x)) .- sign.(w)
     end
 
     # Direction (solve particular CQK)
     function d!(d, x, lambda, g)
         @. P.a = x - lambda * g
-        P.a[maskchg] .*= -1.0
         _, flag = cqk!(d, P)
         if flag != :solved
-            error("Error while solving CQK")
+            error("Error while solving CQK (lambda = $(lambda), exit status: $(flag))")
         end
-        d[maskchg] .*= -1.0
         d .-= x
     end
 
@@ -63,14 +59,15 @@ function svm_solve(
     # undefined.
     xprev = Float64[]
     sol = similar(P.a)
-    function b_callback(x, iter)
+    function b_callback(x, outiter)
         # CQK
         chunks = initialize_chunks(length(sol); nchunks=nthreads)
         b = @benchmarkable cqk!($sol, $P, chunks=($chunks), x0=($xprev))
         time = estimatetime(b)
         iter, flag = cqk(P, nchunks=nthreads, x0=(xprev))[2:3]
         infeas = abs(dot(P.b, sol) - P.r)
-        push!(results, [instance, n, "cqk", nthreads, iter, flag, time, infeas])
+        push!(results,
+             [instance, n, outiter, "cqk", nthreads, iter, flag, time, infeas])
 
         # CMS_CQN
         if nthreads == 1
@@ -78,21 +75,18 @@ function svm_solve(
             time = estimatetime(b)
             iter, flag = cms_cqn(P, x0=(xprev))[2:3]
             infeas = abs(dot(P.b, sol) - P.r)
-            rel_diff = euclidean(sol, xnew) / norm(xnew)
-            push!(results, [instance, n, "cqk", 1, iter, flag, time, infeas])
+            push!(results,
+                 [instance, n, outiter, "cqn", 1, iter, flag, time, infeas])
         end
 
         # Update xprev for the next round
-        xprev .= x
+        isempty(xprev) ? xprev = deepcopy(x) : xprev .= x
     end
 
     # --------
     # CALL SPG
     # --------
-    spg(n, f, g!, d!, pg_supnorm, l = 0.0, u = C, callback = b_callback)
-
-    # Save results
-    jldsave(output; results)
+    spg(n, f, g!, d!, pg_supnorm, l = P.l, u = P.u, callback = b_callback)
 
     return
 end
@@ -105,7 +99,7 @@ function svm_executed(results, instance, nthreads)
         ]
     )
         @printf(
-            "%12s  %3d  already executed. Skipping...\n",
+            "%s with %d thread(s) already executed. Skipping...\n",
             instance, nthreads
         )
         return true
@@ -113,17 +107,17 @@ function svm_executed(results, instance, nthreads)
     return false
 end
 
-function svm_alltests(args)
+function svm_alltests(cont)
     nthreads = Threads.nthreads()
 
-    # Get command line parameters
-    opts = get_parameters()
+    output = "results_svm.jld2"
 
     # Results
     results = DataFrame(
         [
             "Instance" => String[]
             "n" => Int64[]
+            "outiter" => Int64[]
             "Algorithm" => String[]
             "threads" => Int64[]
             "iter" => Int64[]
@@ -132,7 +126,7 @@ function svm_alltests(args)
             "infeas" => Float64[]
         ]
     )
-    if opts["continue"] && isfile(output)
+    if cont && isfile(output)
         jld2file = jldopen(output, "r")
         results = read(jld2file, "results")
         close(jld2file)
@@ -147,7 +141,8 @@ function svm_alltests(args)
         w[1:50] .= -1.0
 
         svm_solve("iris", Z, w, nthreads, results; sigma = 5.0, C = 1.0)
-    end
 
-    return 0
+        # Save results
+        jldsave(output; results)
+    end
 end
