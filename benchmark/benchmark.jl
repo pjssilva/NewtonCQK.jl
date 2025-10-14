@@ -8,7 +8,6 @@ using BenchmarkTools
 using ArgParse
 using OhMyThreads: OhMyThreads
 using DataFrames
-using CSV
 using Distributions
 using JLD2
 using CUDA
