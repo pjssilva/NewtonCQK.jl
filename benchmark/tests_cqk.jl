@@ -42,7 +42,7 @@ function CQK_corr(n)
 end
 
 function cqk_infeas(P, sol)
-    return abs(dot(P.b, sol) - P.r) / P.r
+    return abs(dot(P.b, sol) - P.r) / max(abs(P.r), 1.0)
 end
 
 #################################
