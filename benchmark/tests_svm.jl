@@ -17,9 +17,19 @@ function svm_solve(
     P.l[maskchg] .= -C
     P.u[maskchg] .= 0.0
 
+    # The problem is, after changing variables,
+    # min  0.5*x'Hx - s'x
+    # s.t. |w'|x = 0
+    #      0 <= xi <= C,  i: wi > 0
+    #     -C <= xi <= 0,  i: wi < 0
+    # where si = 1 if wi > 0 and si = -1 of wi < 0
+
+    # The subproblem at iteration k is, after changing variables,
+    # the problem above with H = I and s = xk - lambda*grad f
+
     # Kernel
     frac = 0.5 / sigma^2
-    K(zi,zj) = exp(frac * sqeuclidean(zi,zj))
+    K(zi,zj) = exp(-frac * sqeuclidean(zi,zj))
 
     # "Lazy" Hessian
     H(Z) = @inbounds @views [ K(Z[:,i],Z[:,j]) for i=1:n, j=1:n ]
@@ -31,13 +41,13 @@ function svm_solve(
 
     # Gradient of objective function
     function g!(g, x)
-        g .= (H(Z) * (sign.(w) .* x)) .- sign.(w)
+        g .= (H(Z) * x) .- sign.(w)
     end
 
     # Direction (solve particular CQK)
     function d!(d, x, lambda, g)
         @. P.a = x - lambda * g
-        _, flag = cqk!(d, P)
+        _, flag = cqk!(d, P, x0=(x))
         if flag != :solved
             error("Error while solving CQK (lambda = $(lambda), exit status: $(flag))")
         end
@@ -55,32 +65,27 @@ function svm_solve(
     # We do not store every iterate produced by SPG because this can consume too
     # memory. Instead, we perform the benchmarks here and store only the result.
     # P is relative to x, which must be updated before by d!. For benchmarking,
-    # we start at x0 = xprev = "previous x". In the first outer iteration, x0 is
-    # undefined.
-    xprev = Float64[]
+    # we start at x0 = x.
     sol = similar(P.a)
     function b_callback(x, outiter)
         # CQK
         chunks = initialize_chunks(length(sol); nchunks=nthreads)
-        b = @benchmarkable cqk!($sol, $P, chunks=($chunks), x0=($xprev))
+        b = @benchmarkable cqk!($sol, $P, chunks=($chunks), x0=($x))
         time = estimatetime(b)
-        iter, flag = cqk(P, nchunks=nthreads, x0=(xprev))[2:3]
-        infeas = abs(dot(P.b, sol) - P.r)
+        iter, flag = cqk(P, nchunks=nthreads, x0=(x))[2:3]
+        infeas = abs(dot(P.b, sol) - P.r)   # P.r=0
         push!(results,
              [instance, n, outiter, "cqk", nthreads, iter, flag, time, infeas])
 
         # CMS_CQN
         if nthreads == 1
-            b = @benchmarkable cms_cqn!($sol, $P)
+            b = @benchmarkable cms_cqn!($sol, $P, x0=($x))
             time = estimatetime(b)
-            iter, flag = cms_cqn(P, x0=(xprev))[2:3]
-            infeas = abs(dot(P.b, sol) - P.r)
+            iter, flag = cms_cqn(P, x0=(x))[2:3]
+            infeas = abs(dot(P.b, sol) - P.r)   # P.r=0
             push!(results,
                  [instance, n, outiter, "cqn", 1, iter, flag, time, infeas])
         end
-
-        # Update xprev for the next round
-        isempty(xprev) ? xprev = deepcopy(x) : xprev .= x
     end
 
     # --------
@@ -132,17 +137,57 @@ function svm_alltests(cont)
         close(jld2file)
     end
 
-    # IRIS
-    if !svm_executed(results, "iris", nthreads)
-        println("\nDataset: iris\n")
-        data = UCIData.dataset("iris")
-        Z = Matrix(data[1:100, 2:5])'
-        w = ones(100)
-        w[1:50] .= -1.0
+    # SVM
+    # Filter datasets for binary classification from UCI
+    datasets = OpenML.list_datasets(
+        tag = "uci",
+        filter="number_classes/2/number_instances/100..1000/number_missing_values/0",
+        output_format = DataFrame
+    )
 
-        svm_solve("iris", Z, w, nthreads, results; sigma = 5.0, C = 1.0)
+    for d in eachrow(datasets)
+        n = d.NumberOfNumericFeatures
+        m = d.NumberOfInstances
 
-        # Save results
-        jldsave(output; results)
+        if (d.NumberOfSymbolicFeatures > 1) || (n != d.NumberOfFeatures - 1)
+            continue
+        end
+
+        if !svm_executed(results, d.name, nthreads)
+            println("\nDataset: $(d.name) (id $(d.id))    Num instances: $(m)    Num features: $(n)")
+
+            Z = []
+            w = []
+            try
+                data = DataFrame(OpenML.load(d.id))
+                classes = unique(data[:,end])
+                if length(classes) != 2
+                    continue
+                end
+                Z = Float64.(Matrix(data[:, 1:(end-1)])')
+                w = ones(m)
+                # classes[1]: 1, classes[2]: -1
+                w[data[:,end] .== classes[2]] .= -1
+            catch
+                println("Error while parsing")
+                println('-'^98)
+                continue
+            end
+
+            try
+                sigma = 5.0
+                C = 1.0
+                svm_solve(d.name, Z, w, nthreads, results; sigma = sigma, C = C)
+            catch err
+                println("Error while solving.\nMessage: $(err)")
+                println('-'^98)
+                continue
+            end
+
+            println('-'^98)
+
+            # Save results
+            jldsave(output; results)
+        end
     end
 end

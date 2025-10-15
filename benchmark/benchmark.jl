@@ -13,7 +13,7 @@ using JLD2
 using CUDA
 using SparseArrays
 using Distances
-using UCIData
+using OpenML
 
 # using ThreadPinning
 # pinthreads(:cores)

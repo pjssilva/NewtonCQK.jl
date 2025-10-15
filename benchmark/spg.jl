@@ -14,10 +14,10 @@ function spg(n, f, g!, d!, pg_supnorm;
     u = Inf,
     m = 10,
     eta = 1e-4,
-    lmin = 1e-10,
-    lmax = 1e+10,
-    maxiters = 50000,
-    eps = 1e-8,
+    lmin = 1e-20,
+    lmax = 1e+20,
+    maxiters = 100,
+    eps = 1e-6,
     x0 = Float64[],
     callback = nothing
 )
@@ -69,7 +69,7 @@ function spg(n, f, g!, d!, pg_supnorm;
         # Projected gradient supnorm
         gsupn = pg_supnorm(x, g)
 
-        println("SPG iteration: $(iter)     |proj g| = $(gsupn)")
+        println("SPG iter: $(iter)    |proj g| = $(gsupn)")
 
         # Test whether convergence is achieved
         if gsupn <= eps
@@ -135,7 +135,7 @@ function ls!(xnew, f, x, fx, fxmax, g, d, eta)
     @. xnew = x + d
     fxnew = f(xnew)
 
-    tmin = 1e-16
+    tmin = 1e-12
 
     flag = true
     while (fxnew > fxmax + t * eta * gtd)
