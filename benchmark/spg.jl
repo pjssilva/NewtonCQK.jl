@@ -1,15 +1,12 @@
 using LinearAlgebra
 
-# Project x onto box
-function proj!(x, l::Vector{Float64}, u::Vector{Float64})
-    @. x = max(l, min(u, x))
-end
-function proj!(x, l::Float64, u::Float64)
-    clamp!(x, l, u)
-end
-
 # SPG main function
-function spg(n, f, g!, d!, pg_supnorm;
+# n: number of variables
+# f: objective function -- f(x)
+# g!: gradient of f -- g!(g, x) stores grad f in g
+# proj!: projection operator -- proj!(p, z, x0) stores P(z) in p
+#        we pass x0 = x as warm start for CQK solver
+function spg(n, f, g!, proj!;
     l = -Inf,
     u = Inf,
     m = 10,
@@ -19,7 +16,8 @@ function spg(n, f, g!, d!, pg_supnorm;
     maxiters = 100,
     eps = 1e-6,
     x0 = Float64[],
-    callback = nothing
+    callback = nothing,
+    verbose = 1
 )
     # -----------------
     # MEMORY ALLOCATION
@@ -39,7 +37,8 @@ function spg(n, f, g!, d!, pg_supnorm;
     # --------------
     # Initial guess
     isempty(x0) ? x .= 0.0 : x .= x0
-    proj!(x, l, u)
+    # Update x by its projection, with warm start x
+    proj!(x, x, x)
 
     fx = f(x)
     g!(g, x)
@@ -47,7 +46,7 @@ function spg(n, f, g!, d!, pg_supnorm;
 
     # Initial spectral steplength
     tsmall = max(1e-7 * norm(x, Inf), 1e-10)
-    d!(d, x, 1.0, g)
+    proj!(d, x, g)
     @. s = tsmall * d
     @. xnew = x + s
     g!(gnew, xnew)
@@ -66,10 +65,14 @@ function spg(n, f, g!, d!, pg_supnorm;
     # MAIN LOOP
     # ---------
     while (true)
-        # Projected gradient supnorm
-        gsupn = pg_supnorm(x, g)
+        # Projected gradient supnorm (use d as auxiliary vector)
+        proj!(d, x .- g, x)
+        d .-= x
+        gsupn = norm(d, Inf)
 
-        println("SPG iter: $(iter)    |proj g| = $(gsupn)")
+        if verbose > 0
+            println("SPG iter: $(iter)    |proj g| = $(gsupn)")
+        end
 
         # Test whether convergence is achieved
         if gsupn <= eps
@@ -86,7 +89,8 @@ function spg(n, f, g!, d!, pg_supnorm;
         iter += 1
 
         # Compute direction
-        d!(d, x, lambda, g)
+        proj!(d, x .- lambda * g, x)
+        d .-= x
 
         # Line search
         fxmax = maximum(lastf)
@@ -98,9 +102,12 @@ function spg(n, f, g!, d!, pg_supnorm;
             break
         end
 
-        # Benchmark
+        # Callback
         if !isnothing(callback)
-            callback(x, iter)
+            if callback(x, iter)
+                flag = :callback_stop
+                break
+            end
         end
 
         lastf[mod(iter + 1, m) + 1] = fx
@@ -120,6 +127,10 @@ function spg(n, f, g!, d!, pg_supnorm;
             xbest .= x
             fbest = fx
         end
+    end
+
+    if verbose > 0
+        println("\nSPG exit status: $(flag)")
     end
 
     return x, iter, flag
