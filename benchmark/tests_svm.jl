@@ -122,7 +122,7 @@ function svm_executed(results, instance, nthreads)
     return false
 end
 
-function z_score!(Z, itrain)
+function z-score!(Z, itrain)
     for f in 1:size(Z,1)
         m = mean(Z[f,itrain])
         std_dev = std(Z[f,itrain], mean=m)
@@ -179,7 +179,7 @@ function svm_tune(Z, w; k = 4)
             ww = w[perm]
 
             # Scale features of training data (z-score)
-            z_score!(ZZ, itrain)
+            z-score!(ZZ, itrain)
 
             red_dualsol, _, flag = svm_solve(
                 "tuning", ZZ[:,itrain], ww[itrain], 1; sigma = sigma, C = C, verbose = 0
@@ -210,7 +210,6 @@ function svm_tune(Z, w; k = 4)
                         s += dualsol[i] * ww[i] * K(ZZ[:,i], ZZ[:,v])
                     end
                     s += b
-                    @show abs(ww[v] * s - 1)
                     if abs(ww[v] * s - 1) > 1e-4
                         error_measure += abs(ww[v] * s - 1)
                     end
@@ -326,7 +325,7 @@ function svm_alltests(cont)
             end
 
             # Scale features
-            z_score!(Z, size(Z,2))
+            z-score!(Z, size(Z,2))
 
             _, _, flag = svm_solve(
                 d.name, Z, w, nthreads;
