@@ -1,7 +1,7 @@
 using NewtonCQK
 
 using Printf
-using Random: Random
+using Random: Random, randperm
 Random.seed!(0)
 using LinearAlgebra
 using BenchmarkTools

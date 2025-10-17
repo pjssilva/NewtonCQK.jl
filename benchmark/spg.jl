@@ -13,7 +13,7 @@ function spg(n, f, g!, proj!;
     eta = 1e-4,
     lmin = 1e-20,
     lmax = 1e+20,
-    maxiters = 100,
+    maxiters = 50000,
     eps = 1e-6,
     x0 = Float64[],
     callback = nothing,
@@ -89,7 +89,10 @@ function spg(n, f, g!, proj!;
         iter += 1
 
         # Compute direction
-        proj!(d, x .- lambda * g, x)
+        if !proj!(d, x .- lambda * g, x)
+            flag = :error_proj
+            break
+        end
         d .-= x
 
         # Line search
@@ -146,7 +149,7 @@ function ls!(xnew, f, x, fx, fxmax, g, d, eta)
     @. xnew = x + d
     fxnew = f(xnew)
 
-    tmin = 1e-12
+    tmin = 1e-14
 
     flag = true
     while (fxnew > fxmax + t * eta * gtd)
@@ -157,14 +160,14 @@ function ls!(xnew, f, x, fx, fxmax, g, d, eta)
         end
 
         if t <= 0.1
-            t *= 2.0
+            t /= 2.0
         else
             # quadratic interpolation
             tquad = -0.5 * ( gtd * (t^2) / (fxnew - fx - t * gtd) )
 
             # backtracking
             if (tquad < 0.1) || (tquad > 0.9 * t)
-                t *= 2.0
+                t /= 2.0
             else
                 t = tquad
             end

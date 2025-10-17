@@ -1,3 +1,5 @@
+using Statistics
+
 include("spg.jl")
 
 # Objective function
@@ -14,13 +16,14 @@ end
 function proj!(p, z, x0, P::CQKProblem)
     P.a .= z
     _, flag = cqk!(p, P, x0=(x0))
-    if flag != :solved
-        error("Error while solving CQK (exit status: $(flag))")
-    end
+    return (flag == :solved)
 end
 
+# Apply SPG and optionally benchmark
+# Training data is considered scaled here!
 function svm_solve(
-    instance, Z, y, nthreads; results = nothing, sigma = 5.0, C = 1.0, verbose = 1
+    instance, Z, y, nthreads;
+    results = nothing, sigma = 5.0, C = 1.0, verbose = 1
 )
     @assert sigma > 0.0 throw(ArgumentError("sigma must be positive"))
     @assert C > 0.0 throw(ArgumentError("C must be positive"))
@@ -93,8 +96,12 @@ function svm_solve(
         (p, z, x0) -> proj!(p, z, x0, P),
         l = P.l, u = P.u,
         callback = isnothing(results) ? nothing : b_callback,
+        maxiters = 500,
         verbose = verbose
     )
+
+    # Revert variable changes
+    dualsol[maskchg] .*= -1.0
 
     return dualsol, spgiter, flag
 end
@@ -115,7 +122,16 @@ function svm_executed(results, instance, nthreads)
     return false
 end
 
-# Tuning SVM parameters by a simple grid search w/ cross validation
+function z_score!(Z, itrain)
+    for f in 1:size(Z,1)
+        m = mean(Z[f,itrain])
+        std_dev = std(Z[f,itrain], mean=m)
+        Z[f,itrain] .-= m
+        Z[f,itrain] ./= std_dev
+    end
+end
+
+# Tuning SVM parameters by a simple grid search with k-fold cross validation
 function svm_tune(Z, w; k = 4)
     bestsigma = 0.0
     bestC = 0.0
@@ -135,9 +151,15 @@ function svm_tune(Z, w; k = 4)
         start += len
     end
 
+    dualsol = Vector{Float64}(undef, ninst)
     besterror = Inf
 
-    for sigma = 2.0:1.0:10.0, C = 0.1:0.5:5.0
+    # Permutation to shuffle data (the same for all tests)
+    perm = randperm(ninst)
+
+    for sigma = 1.0:1.0:8.0, C = 0.5:0.5:10.0
+        print("\rTesting sigma = $(sigma), C = $(C)")
+
         # Kernel
         frac = 0.5 / sigma^2
         K(zi,zj) = exp(-frac * sqeuclidean(zi,zj))
@@ -149,15 +171,56 @@ function svm_tune(Z, w; k = 4)
 
         # cross validation
         for t in itest
+            # Instances indices for training
             itrain = setdiff(1:ninst, t)
 
-            dualsol, _, flag = svm_solve(
-                "tuning", Z[:,t], w[t], 1; sigma = sigma, C = C, verbose = 0
+            # Shuffle data according perm
+            ZZ = Z[:,perm]
+            ww = w[perm]
+
+            # Scale features of training data (z-score)
+            z_score!(ZZ, itrain)
+
+            red_dualsol, _, flag = svm_solve(
+                "tuning", ZZ[:,itrain], ww[itrain], 1; sigma = sigma, C = C, verbose = 0
             )
 
-            if flag != :solved
-                #TODO: compute classification errors on testdata
-                error_measure += 0.0
+            if flag == :solved
+                dualsol .= 0.0
+                dualsol[itrain] .= red_dualsol
+
+                # Compute b using all dual variables in (0,C)
+                b = 0.0
+                count_valid = 0
+                for j in itrain
+                    if (dualsol[j] > 1e-6) && (dualsol[j] < C - 1e-6)
+                        bj = 0.0
+                        for i in itrain
+                            bj -= dualsol[i] * ww[i] * K(ZZ[:,i], ZZ[:,j])
+                        end
+                        b += ww[j] - bj
+                        count_valid += 1
+                    end
+                end
+                b /= count_valid
+
+                for v in t
+                    s = 0.0
+                    for i in itrain
+                        s += dualsol[i] * ww[i] * K(ZZ[:,i], ZZ[:,v])
+                    end
+                    s += b
+                    @show abs(ww[v] * s - 1)
+                    if abs(ww[v] * s - 1) > 1e-4
+                        error_measure += abs(ww[v] * s - 1)
+                    end
+                end
+                if error_measure / length(itest) >= besterror
+                    break
+                end
+            else
+                error_measure = Inf
+                break
             end
         end
 
@@ -166,6 +229,7 @@ function svm_tune(Z, w; k = 4)
         if error_measure < besterror
             bestsigma = sigma
             bestC = C
+            besterror = error_measure
         end
     end
 
@@ -242,35 +306,46 @@ function svm_alltests(cont)
                 continue
             end
 
-#             try
-                if haskey(param, d.name)
-                    # Parameters already computed
-                    sigma, C = param[d.name]
-                else
-                    # Tune parameters by a simple grid search
-                    println("Tuning parameters for $(d.name)...")
-                    sigma, C = svm_tune(Z, w)
-                    println("done")
-                    if (sigma == 0.0) || (C == 0.0)
-                        # Tuning failed
-                        println("Tuning failed. Skipping...")
-                        continue
-                    end
-                    push!(param, d.name => [sigma; C])
-
-                    # Update parameters file
-                    jldsave("svm_param.jld2"; param)
+            if haskey(param, d.name)
+                # Parameters already computed
+                sigma, C = param[d.name]
+            else
+                # Tune parameters by a simple grid search
+                println("Tuning parameters for $(d.name)...")
+                sigma, C = svm_tune(Z, w)
+                println("\ndone. Parameters: sigma = $(sigma), C = $(C)")
+                if (sigma == 0.0) || (C == 0.0)
+                    # Tuning failed
+                    println("Tuning failed. Skipping...")
+                    continue
                 end
+                push!(param, d.name => [sigma; C])
 
-                svm_solve(
-                    d.name, Z, w, nthreads;
-                    results = results, sigma = sigma, C = C
-                )
-#             catch err
-                println("Error while solving.\nMessage: $(err)")
+                # Update parameters file
+                jldsave("svm_param.jld2"; param)
+            end
+
+            # Scale features
+            z_score!(Z, size(Z,2))
+
+            _, _, flag = svm_solve(
+                d.name, Z, w, nthreads;
+                results = results, sigma = sigma, C = C
+            )
+
+            if flag != :solved
+                if flag == :error_proj
+                    println("Projection failed in SPG.")
+                end
+                if flag == :too_small_steplength
+                    println("SPG stops with small step length.")
+                end
+                if flag == :max_iter
+                    println("SPG stops by max iterations.")
+                end
                 println('-'^98)
                 continue
-#             end
+            end
 
             println('-'^98)
 
