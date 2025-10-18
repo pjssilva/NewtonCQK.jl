@@ -157,8 +157,25 @@ function svm_tune(Z, w; k = 4)
     # Permutation to shuffle data (the same for all tests)
     perm = randperm(ninst)
 
-    for sigma = 1.0:1.0:8.0, C = 0.5:0.5:10.0
-        print("\rTesting sigma = $(sigma), C = $(C)")
+    ZZ = similar(Z)
+    ww = similar(w)
+
+    # "log ranges" for sigma and C
+    sigma0 = 1.0 / size(Z, 1)
+    C0 = 1.0
+
+    sigmas = Float64[]
+    Cs = Float64[]
+
+    for disp = -0.5:0.5:1.5
+        push!(sigmas, 10^(log(10, sigma0) + disp))
+    end
+    for disp = -1.0:0.5:1.0
+        push!(Cs, 10^(log(10, C0) + disp))
+    end
+
+    for sigma in sigmas, C in Cs
+        print("\rTesting sigma = $(sigma), C = $(C)                           ")
 
         # Kernel
         frac = 0.5 / sigma^2
@@ -175,8 +192,8 @@ function svm_tune(Z, w; k = 4)
             itrain = setdiff(1:ninst, t)
 
             # Shuffle data according perm
-            ZZ = Z[:,perm]
-            ww = w[perm]
+            ZZ .= Z[:,perm]
+            ww .= w[perm]
 
             # Scale features of training data (z_score)
             z_score!(ZZ, itrain)
@@ -325,7 +342,7 @@ function svm_alltests(cont)
             end
 
             # Scale features
-            z_score!(Z, size(Z,2))
+            z_score!(Z, 1:size(Z,2))
 
             _, _, flag = svm_solve(
                 d.name, Z, w, nthreads;
