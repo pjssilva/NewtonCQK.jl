@@ -289,7 +289,7 @@ function svm_alltests(cont)
     # Filter datasets for binary classification from UCI
     datasets = OpenML.list_datasets(
         tag = "uci",
-        filter="number_classes/2/number_instances/100..1000/number_missing_values/0",
+        filter="number_classes/2/number_instances/100..10000/number_missing_values/0",
         output_format = DataFrame
     )
 
@@ -297,13 +297,14 @@ function svm_alltests(cont)
         n = d.NumberOfNumericFeatures
         m = d.NumberOfInstances
 
+        println("\nDataset: $(d.name) (id $(d.id))    Num instances: $(m)    Num features: $(n)")
+
         if (d.NumberOfSymbolicFeatures > 1) || (n != d.NumberOfFeatures - 1)
+            println("Invalid number of numeric features")
             continue
         end
 
         if !svm_executed(results, d.name, nthreads)
-            println("\nDataset: $(d.name) (id $(d.id))    Num instances: $(m)    Num features: $(n)")
-
             Z = []
             w = []
             try
