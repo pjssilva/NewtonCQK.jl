@@ -250,7 +250,6 @@ function simplex_newton(
 
         if abs(λ) < eps(T)^0.75 || isfeasible(total, r, y)
             # y is the solution!
-            # iter = 0 indicates the solution need not be re-computed
             return T0, 1, :solved
         end
 
