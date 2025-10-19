@@ -23,9 +23,9 @@ end
 # Training data is considered scaled here!
 function svm_solve(
     instance, Z, y, nthreads;
-    results = nothing, sigma = 5.0, C = 1.0, verbose = 1
+    results = nothing, γ = 0.01, C = 1.0, verbose = 1
 )
-    @assert sigma > 0.0 throw(ArgumentError("sigma must be positive"))
+    @assert γ > 0.0 throw(ArgumentError("γ must be positive"))
     @assert C > 0.0 throw(ArgumentError("C must be positive"))
     @assert !isempty(instance) throw(ArgumentError("instance must be provided"))
     @assert size(Z,2) == length(y) throw(DimensionMismatch("Z and y have incompatible dimensions"))
@@ -51,8 +51,7 @@ function svm_solve(
     # the problem above with H = I and s = xk - lambda*grad f
 
     # Kernel
-    frac = 0.5 / sigma^2
-    K(zi,zj) = exp(-frac * sqeuclidean(zi,zj))
+    K(a,b) = exp(-γ * sqeuclidean(a,b))
 
     # "Lazy" Hessian
     H(Z) = @inbounds @views [ K(Z[:,i],Z[:,j]) for i=1:n, j=1:n ]
@@ -133,7 +132,7 @@ end
 
 # Tuning SVM parameters by a simple grid search with k-fold cross validation
 function svm_tune(Z, w; k = 4)
-    bestsigma = 0.0
+    bestγ = 0.0
     bestC = 0.0
 
     ninst = size(Z, 2)
@@ -160,26 +159,25 @@ function svm_tune(Z, w; k = 4)
     ZZ = similar(Z)
     ww = similar(w)
 
-    # "log ranges" for sigma and C
-    sigma0 = 1.0 / size(Z, 1)
+    # "log ranges" for γ and C
+    γ0 = 1.0 / size(Z, 1)
     C0 = 1.0
 
-    sigmas = Float64[]
+    γs = Float64[]
     Cs = Float64[]
 
     for disp = -0.5:0.5:1.5
-        push!(sigmas, 10^(log(10, sigma0) + disp))
+        push!(γs, 10^(log(10, γ0) + disp))
     end
     for disp = -1.0:0.5:1.0
         push!(Cs, 10^(log(10, C0) + disp))
     end
 
-    for sigma in sigmas, C in Cs
-        print("\rTesting sigma = $(sigma), C = $(C)                           ")
+    for γ in γs, C in Cs
+        print("\rTesting γ = $(γ), C = $(C)                           ")
 
         # Kernel
-        frac = 0.5 / sigma^2
-        K(zi,zj) = exp(-frac * sqeuclidean(zi,zj))
+        K(a,b) = exp(-γ * sqeuclidean(a,b))
 
         # "Lazy" Hessian
         H(Z) = @inbounds @views [ K(Z[:,i],Z[:,j]) for i=1:size(Z,2), j=1:size(Z,2) ]
@@ -199,7 +197,7 @@ function svm_tune(Z, w; k = 4)
             z_score!(ZZ, itrain)
 
             red_dualsol, _, flag = svm_solve(
-                "tuning", ZZ[:,itrain], ww[itrain], 1; sigma = sigma, C = C, verbose = 0
+                "tuning", ZZ[:,itrain], ww[itrain], 1; γ = γ, C = C, verbose = 0
             )
 
             if flag == :solved
@@ -243,13 +241,13 @@ function svm_tune(Z, w; k = 4)
         error_measure /= length(itest)
 
         if error_measure < besterror
-            bestsigma = sigma
+            bestγ = γ
             bestC = C
             besterror = error_measure
         end
     end
 
-    return bestsigma, bestC
+    return bestγ, bestC
 end
 
 function svm_alltests(cont)
@@ -325,18 +323,18 @@ function svm_alltests(cont)
 
             if haskey(param, d.name)
                 # Parameters already computed
-                sigma, C = param[d.name]
+                γ, C = param[d.name]
             else
                 # Tune parameters by a simple grid search
                 println("Tuning parameters for $(d.name)...")
-                sigma, C = svm_tune(Z, w)
-                println("\ndone. Parameters: sigma = $(sigma), C = $(C)")
-                if (sigma == 0.0) || (C == 0.0)
+                γ, C = svm_tune(Z, w)
+                println("\ndone. Parameters: γ = $(γ), C = $(C)")
+                if (γ == 0.0) || (C == 0.0)
                     # Tuning failed
                     println("Tuning failed. Skipping...")
                     continue
                 end
-                push!(param, d.name => [sigma; C])
+                push!(param, d.name => [γ; C])
 
                 # Update parameters file
                 jldsave("svm_param.jld2"; param)
@@ -347,7 +345,7 @@ function svm_alltests(cont)
 
             _, _, flag = svm_solve(
                 d.name, Z, w, nthreads;
-                results = results, sigma = sigma, C = C
+                results = results, γ = γ, C = C
             )
 
             if flag != :solved
