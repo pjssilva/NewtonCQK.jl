@@ -1,6 +1,15 @@
 using Statistics
 
+BLAS.set_num_threads(1)
+
 include("spg.jl")
+
+# Filter datasets for binary classification
+datasets = OpenML.list_datasets(
+    #tag = "uci",
+    filter="number_classes/2/number_instances/1000..100000/number_missing_values/0",
+    output_format = DataFrame
+)
 
 # Objective function
 function f(x, H, Z, y)
@@ -13,9 +22,9 @@ function g!(g, x, H, Z, y)
 end
 
 # Projection (solve particular CQK)
-function proj!(p, z, x0, P::CQKProblem)
+function proj!(p, z, x0, chunks, P::CQKProblem)
     P.a .= z
-    _, flag = cqk!(p, P, x0=(x0))
+    _, flag = cqk!(p, P, chunks=(chunks), x0=(x0))
     return (flag == :solved)
 end
 
@@ -62,9 +71,9 @@ function svm_solve(
     # P is relative to x, which must be updated before by proj!. For benchmarking,
     # we start at x0 = x.
     sol = similar(P.a)
+    chunks = initialize_chunks(length(sol); nchunks=nthreads)
     function b_callback(x, outiter)
         # CQK
-        chunks = initialize_chunks(length(sol); nchunks=nthreads)
         b = @benchmarkable cqk!($sol, $P, chunks=($chunks), x0=($x))
         time = estimatetime(b)
         iter, flag = cqk(P, nchunks=nthreads, x0=(x))[2:3]
@@ -92,7 +101,7 @@ function svm_solve(
         n,
         x -> f(x, H, Z, y),
         (g, x) -> g!(g, x, H, Z, y),
-        (p, z, x0) -> proj!(p, z, x0, P),
+        (p, z, x0) -> proj!(p, z, x0, chunks, P),
         l = P.l, u = P.u,
         callback = isnothing(results) ? nothing : b_callback,
         maxiters = 500,
@@ -174,8 +183,6 @@ function svm_tune(Z, w; k = 4)
     end
 
     for γ in γs, C in Cs
-        print("\rTesting γ = $(γ), C = $(C)                           ")
-
         # Kernel
         K(a,b) = exp(-γ * sqeuclidean(a,b))
 
@@ -250,6 +257,70 @@ function svm_tune(Z, w; k = 4)
     return bestγ, bestC
 end
 
+# Read a dataset
+function svm_readdataset(id)
+    d = datasets[datasets.id .== id,:]
+    n = d.NumberOfInstances[1]
+    m = d.NumberOfNumericFeatures[1]
+    if (d.NumberOfSymbolicFeatures[1] > 1) || (m != d.NumberOfFeatures[1] - 1)
+        println("$(d.name[1]): Invalid number of numeric features")
+        return nothing, nothing
+    end
+    data = []
+    try
+        data = DataFrame(OpenML.load(id))
+    catch
+        println("$(d.name[1]): Error while parsing")
+        return nothing, nothing
+    end
+    classes = unique(data[:,end])
+    if length(classes) != 2
+        return nothing, nothing
+    end
+    Z = Matrix{Float64}(undef, m, n)
+    Z .= Float64.(Matrix(data[:, 1:(end-1)])')
+    w = ones(n)
+    # classes[1]: 1, classes[2]: -1
+    w[data[:,end] .== classes[2]] .= -1
+    return Z, w
+end
+
+function svm_alltune()
+    param = Dict()
+
+    if isfile("svm_param.jld2")
+        jld2file = jldopen("svm_param.jld2", "r")
+        param = read(jld2file, "param")
+        close(jld2file)
+    end
+
+    applock = SpinLock()
+
+    # Tuning
+    Threads.@threads for d in eachrow(datasets)
+        if haskey(param, d.id)
+            println("$(d.name[1]): Already tuned. Skipping...")
+            continue
+        else
+            Z, w = svm_readdataset(d.id)
+            if isnothing(Z)
+                continue
+            end
+
+            # Tune parameters by a simple grid search
+            println("$(d.name[1]): Tuning parameters...")
+            γ, C = svm_tune(Z, w)
+            println("\n$(d.name[1]): done. Parameters: γ = $(γ), C = $(C)")
+
+            lock(applock)
+            push!(param, d.id => [γ; C])
+            # Update parameters file
+            jldsave("svm_param.jld2"; param)
+            unlock(applock)
+        end
+    end
+end
+
 function svm_alltests(cont)
     nthreads = Threads.nthreads()
 
@@ -283,81 +354,35 @@ function svm_alltests(cont)
         close(jld2file)
     end
 
-    # SVM
-    # Filter datasets for binary classification from UCI
-    datasets = OpenML.list_datasets(
-        tag = "uci",
-        filter="number_classes/2/number_instances/100..10000/number_missing_values/0",
-        output_format = DataFrame
-    )
+    for id in keys(param)
+        d = datasets[datasets.id .== id, :]
 
-    for d in eachrow(datasets)
-        n = d.NumberOfNumericFeatures
-        m = d.NumberOfInstances
-
-        println("\nDataset: $(d.name) (id $(d.id))    Num instances: $(m)    Num features: $(n)")
-
-        if (d.NumberOfSymbolicFeatures > 1) || (n != d.NumberOfFeatures - 1)
-            println("Invalid number of numeric features")
-            continue
-        end
-
-        if !svm_executed(results, d.name, nthreads)
-            Z = []
-            w = []
-            try
-                data = DataFrame(OpenML.load(d.id))
-                classes = unique(data[:,end])
-                if length(classes) != 2
-                    continue
-                end
-                Z = Float64.(Matrix(data[:, 1:(end-1)])')
-                w = ones(m)
-                # classes[1]: 1, classes[2]: -1
-                w[data[:,end] .== classes[2]] .= -1
-            catch
-                println("Error while parsing")
-                println('-'^98)
+        if !svm_executed(results, d.name[1], nthreads)
+            γ, C = param[id]
+            if (γ == 0.0) || (C == 0.0)
                 continue
             end
 
-            if haskey(param, d.name)
-                # Parameters already computed
-                γ, C = param[d.name]
-            else
-                # Tune parameters by a simple grid search
-                println("Tuning parameters for $(d.name)...")
-                γ, C = svm_tune(Z, w)
-                println("\ndone. Parameters: γ = $(γ), C = $(C)")
-                if (γ == 0.0) || (C == 0.0)
-                    # Tuning failed
-                    println("Tuning failed. Skipping...")
-                    continue
-                end
-                push!(param, d.name => [γ; C])
+            n = d.NumberOfInstances[1]
+            m = d.NumberOfNumericFeatures[1]
+            println("\nDataset: $(d.name[1]) (id $(id))   Instances: $(n)   Features: $(m)")
 
-                # Update parameters file
-                jldsave("svm_param.jld2"; param)
+            Z, w = svm_readdataset(id)
+            if isnothing(Z)
+                println('-'^98)
+                continue
             end
 
             # Scale features
             z_score!(Z, 1:size(Z,2))
 
             _, _, flag = svm_solve(
-                d.name, Z, w, nthreads;
+                d.name[1], Z, w, nthreads;
                 results = results, γ = γ, C = C
             )
 
             if flag != :solved
-                if flag == :error_proj
-                    println("Projection failed in SPG.")
-                end
-                if flag == :too_small_steplength
-                    println("SPG stops with small step length.")
-                end
-                if flag == :max_iter
-                    println("SPG stops by max iterations.")
-                end
+                println("SPG fails.")
                 println('-'^98)
                 continue
             end

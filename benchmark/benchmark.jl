@@ -41,6 +41,10 @@ function get_parameters()
         arg_type = Bool
         default = true
         help = "execute SVM tests?"
+        "--svm_tune"
+        arg_type = Bool
+        default = false
+        help = "execute SVM tuning?"
     end
     return parse_args(s)
 end
@@ -388,6 +392,12 @@ function main(args)
         # Random tests (CQK, simplex, l1ball) -> results.jld2
         println("===================\nRANDOM\n===================")
         random_alltests(opts["continue"], opts["nreps"])
+    end
+
+    if opts["svm_tune"]
+        # SVM tune -> svm_param.jld2
+        println("===================\nSVM tuning\n===================")
+        svm_alltune()
     end
 
     if opts["svm"]

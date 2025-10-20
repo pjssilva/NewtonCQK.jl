@@ -7,6 +7,7 @@ using Latexify
 using Statistics
 using Format
 using LaTeXStrings
+using OpenML
 
 # Instances names and sizes from tests_cqk.jl and tests_simplex.jl
 # We do not include these files here because to avoid redefine TESTS structure.
@@ -388,6 +389,38 @@ function generate_all()
             filenames=["results.jld2", "results_cpu.jld2"]
         )
     end
+end
+
+# LaTex table datasets
+function table_datasets()
+    jld2file = jldopen("svm_param.jld2", "r")
+    param = read(jld2file, "param")
+    close(jld2file)
+
+    datasets = OpenML.list_datasets(
+        tag = "uci",
+        output_format = DataFrame
+    )
+
+    if !isdir("output")
+        mkdir("output")
+    end
+    output = "output/table_datasets.tex"
+    fmt = generate_formatter("%6.2lf")
+    fmt_n = generate_formatter("%'d")
+    tex = open(output, "w")
+    texcode = ""
+    for k in keys(param)
+        ni = datasets[datasets.name .== k, :NumberOfInstances][1]
+        nf = datasets[datasets.name .== k, :NumberOfFeatures][1] - 1
+        gamma, C = param[k]
+        texcode = texcode * "\\texttt{$(k)} & $(fmt_n(ni)) & $(fmt_n(nf)) & $(fmt(gamma)) & $(fmt(C)) \\\\"
+    end
+    texcode = replace(texcode, "e+" => "e\$+\$")
+    texcode = replace(texcode, "e-" => "e\$-\$")
+    write(tex, texcode)
+    close(tex)
+    println("File $(output) was generated.")
 end
 
 # Run main if non-iteractive
