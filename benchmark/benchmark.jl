@@ -87,7 +87,7 @@ Computes the maximum problem size that fits both RAM and GPU memory.
 function maxsize(unitsize64, usecuda)
     ram_size = Int(Sys.total_memory())
     gpu_ram = usecuda > 0 ? CUDA.memory_info()[2] : Inf
-    base_mem = min(ram_size, gpu_ram) 
+    base_mem = min(ram_size, gpu_ram)
     return base_mem / unitsize64
 end
 USECUDA = get_parameters()["cuda"]
