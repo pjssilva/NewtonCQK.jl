@@ -47,6 +47,11 @@ instancelabels = Dict(
     "corr"          => "Correlated"
 )
 
+fmt_d = generate_formatter("%'d")
+fmt_lf = generate_formatter("%6.2lf")
+fmt_e = generate_formatter("%8.2e")
+fmt_etex(v) = replace(fmt_e(v), "e+" => "e\$+\$")
+
 # read results in JLD2 file
 function read_results(filenames)
     if isa(filenames, String)
@@ -133,13 +138,10 @@ function matrix(
         T[1, c + 1] = "$(TESTS[test_id].algnames[a]) time"
         c += 2
     end
-    fmt_n = generate_formatter("%'d")
-    fmt_iter = generate_formatter("%6.2lf")
-    fmt_time = generate_formatter("%8.2e")
     for l in 1:size(cres, 1)
         row = Vector(cres[l, 1:3])
         if latex
-            row[2] = fmt_n(row[2])
+            row[2] = fmt_d(row[2])
         end
         best = Inf
         ibest = 0
@@ -148,7 +150,7 @@ function matrix(
             # transform to miliseconds (ms)
             means[2] *= 1e-6
             if latex
-                append!(row, [fmt_iter(means[1]); fmt_time(means[2])])
+                append!(row, [fmt_lf(means[1]); fmt_e(means[2])])
             else
                 append!(row, means)
             end
@@ -168,30 +170,58 @@ function matrix(
 end
 
 # write LaTeX file of a table
-function tex_table(test_id; n=0, minthreads=1, maxthreads=500, algs=[], testname="")
+function table_cpu_gpu(
+    inst,
+    cpualg,
+    gpualg;
+    minn = 0,
+    maxthreads = 500,
+    output="",          # additional identifier for output files
+    filenames="results.jld2"
+)
+    @assert length(cpualg) == length(gpualg) "Lists of CPU and GPU algorithms must have the same size"
     if !isdir("output")
         mkdir("output")
     end
-    if testname == ""
-        output = "output/table_$(TESTS[test_id].name).tex"
-    else
-        output = "output/table_$(TESTS[test_id].name)_$(replace(testname, " " => "")).tex"
+    outfile = "output/table_$(inst)_$(output).tex"
+
+    res = read_results(filenames)
+    res = filter_results(res; instance=inst)
+    ns = sort(Int64.(unique(res[:,:n])))
+
+    tex = open(outfile, "w")
+    write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}llrrrr@{\\extracolsep\\fill}}\n")
+	write(tex, "\\toprule\n")
+	write(tex, "\$n\$ & threads & iter & CPU time (ms) & GPU time (ms) & speedup\\\\\n")
+	write(tex, "\\midrule\n")
+    for n in ns
+        if n < minn
+            continue
+        end
+        Tcpu = filter_results(res; n=n, algorithm=cpualg)
+        Tgpu = filter_results(res; n=n, algorithm=gpualg)
+        if isempty(Tcpu) || isempty(Tgpu)
+            continue
+        end
+        # sort cpu by number of threads
+        sort!(Tcpu, 3)
+        gputime = Tgpu[1,:time][1]
+        cputime = Tcpu[1,:time][1]
+        spup = cputime / gputime
+        write(tex, "$(fmt_d(n)) & $(Tcpu[1,:threads][1]) & $(fmt_lf(Tcpu[1,:iter][1])) & $(fmt_etex(cputime)) & $(fmt_etex(gputime)) & $(fmt_lf(spup)) \\\\\n")
+        for r in eachrow(Tcpu[2:end,:])
+            if r.threads <= maxthreads
+                cputime = r.time
+                spup = cputime / gputime
+                write(tex, "$(fmt_d(n)) & $(r.threads) & $(fmt_lf(r.iter)) & $(fmt_etex(r.time)) & & $(fmt_lf(spup)) \\\\\n")
+            end
+        end
+        write(tex, "\\hline\n")
     end
-    T = matrix(
-        test_id;
-        n=n,
-        minthreads=minthreads,
-        maxthreads=maxthreads,
-        algs=algs
-    )
-    ordT = sortslices(T; dims=1, by=row -> (row[1], row[2]))
-    tex = open(output, "w")
-    texcode = latexify(ordT; env=:table, latex=false)
-    texcode = replace(texcode, "e+" => "e\$+\$")
-    texcode = replace(texcode, "e-" => "e\$-\$")
-    write(tex, texcode)
+    write(tex, "\\botrule\n\\end{tabular*}")
+
     close(tex)
-    println("File $(output) was generated. Rename and adjust it if necessary.")
+    println("File $(outfile) was generated.")
 end
 
 # plot the figure of a performance profile of CPU times
@@ -240,8 +270,8 @@ function pp(
 end
 
 # relative speedup
-# if 'inst' is a vector, plot speedups relative the algorithm 'alg'
-# if 'alg' is a vector, plot speedups relative the instance 'inst'
+# if 'inst' is a vector, plot speedups relative to the algorithm 'alg'
+# if 'alg' is a vector, plot speedups relative to the instance 'inst'
 function plot_speedup(
     inst,
     n,
@@ -274,11 +304,11 @@ function plot_speedup(
 
     # initialize plot
     fig = plot(; title=title,
-               xlabel="number of threads",
-               ylabel="relative speedup",
-               legend=legpos,
-               fontfamily="Computer Modern"
-          )
+        xlabel="number of threads",
+        ylabel="relative speedup",
+        legend=legpos,
+        fontfamily="Computer Modern"
+    )
 
     maxth = 1
 
@@ -294,7 +324,7 @@ function plot_speedup(
         end
         T = filter_results(res; instance=ii, n=n, minthreads=minthreads, algorithm=aa)
         if isempty(T)
-            # none instance were solved!
+            # no instance solved!
             return
         end
         # base runtime
@@ -354,6 +384,44 @@ function plot_speedup(
     println("File $(outfile) was generated.")
 end
 
+# LaTex table datasets
+function table_datasets(; abbrv=false)
+    jld2file = jldopen("svm_param.jld2", "r")
+    param = read(jld2file, "param")
+    close(jld2file)
+
+    datasets = OpenML.list_datasets(output_format = DataFrame)
+
+    if !isdir("output")
+        mkdir("output")
+    end
+    output = "output/table_datasets.tex"
+
+    tex = open(output, "w")
+    write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}lrrrr@{\\extracolsep\\fill}}\n")
+	write(tex, "\\toprule\n")
+	write(tex, "Dataset & instances & features & \$\\gamma\$ & \$C\$\\\\\n")
+	write(tex, "\\midrule\n")
+    for k in keys(param)
+        d = datasets[datasets.id .== k, :]
+        ni = d.NumberOfInstances[1]
+        nf = d.NumberOfFeatures[1] - 1
+        gamma, C = param[k]
+        if abbrv
+            final = findfirst("_seed", d.name[1])
+            final = isnothing(final) ? length(d.name[1]) : final[1] - 1
+            dname = replace(d.name[1][1:final], "_" => "\\_")
+        else
+            dname = replace(d.name[1], "_" => "\\_")
+        end
+        write(tex, "\\texttt{$(dname)} & $(fmt_d(ni)) & $(fmt_d(nf)) & $(fmt_lf(gamma)) & $(fmt_lf(C)) \\\\\n")
+    end
+    write(tex, "\\botrule\n\\end{tabular*}")
+
+    close(tex)
+    println("File $(output) was generated.")
+end
+
 function generate_all()
     ###################
     # Speedup CQK
@@ -389,38 +457,33 @@ function generate_all()
             filenames=["results.jld2", "results_cpu.jld2"]
         )
     end
-end
 
-# LaTex table datasets
-function table_datasets()
-    jld2file = jldopen("svm_param.jld2", "r")
-    param = read(jld2file, "param")
-    close(jld2file)
-
-    datasets = OpenML.list_datasets(
-        tag = "uci",
-        output_format = DataFrame
+    ###################
+    # Tables CPU vs GPU
+    ###################
+    tex_table(
+        "uncorr",
+        "cqk (CPU, FP32)",      # CPU algorithm
+        "cqk (GPU, FP32)",      # GPU algorithm
+        filenames=["results.jld2", "results_cpu.jld2"],
+        output="FP32",
+        minn = 10^5,
+        maxthreads = 64
+    )
+    table_cpu_gpu(
+        "uncorr",
+        "cqk (CPU, FP64)",      # CPU algorithm
+        "cqk (GPU, FP64)",      # GPU algorithm
+        filenames=["results.jld2", "results_cpu.jld2"],
+        output="FP64",
+        minn = 10^5,
+        maxthreads = 64
     )
 
-    if !isdir("output")
-        mkdir("output")
-    end
-    output = "output/table_datasets.tex"
-    fmt = generate_formatter("%6.2lf")
-    fmt_n = generate_formatter("%'d")
-    tex = open(output, "w")
-    texcode = ""
-    for k in keys(param)
-        ni = datasets[datasets.name .== k, :NumberOfInstances][1]
-        nf = datasets[datasets.name .== k, :NumberOfFeatures][1] - 1
-        gamma, C = param[k]
-        texcode = texcode * "\\texttt{$(k)} & $(fmt_n(ni)) & $(fmt_n(nf)) & $(fmt(gamma)) & $(fmt(C)) \\\\"
-    end
-    texcode = replace(texcode, "e+" => "e\$+\$")
-    texcode = replace(texcode, "e-" => "e\$-\$")
-    write(tex, texcode)
-    close(tex)
-    println("File $(output) was generated.")
+    ###################
+    # Datasets table
+    ###################
+    table_datasets(abbrv=true)
 end
 
 # Run main if non-iteractive

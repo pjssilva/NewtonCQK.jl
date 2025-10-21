@@ -285,21 +285,24 @@ function svm_readdataset(id)
     return Z, w
 end
 
-function svm_alltune()
-    param = Dict()
-
-    if isfile("svm_param.jld2")
-        jld2file = jldopen("svm_param.jld2", "r")
-        param = read(jld2file, "param")
+function jld2_read!(output, object, filename; test = true)
+    if isfile(filename) && test
+        jld2file = jldopen(filename, "r")
+        output = read(jld2file, object)
         close(jld2file)
     end
+end
+
+function svm_alltune()
+    param = Dict()
+    jld2_read!(param, "param", "svm_param.jld2")
 
     applock = SpinLock()
 
     # Tuning
     Threads.@threads for d in eachrow(datasets)
         if haskey(param, d.id)
-            println("$(d.name[1]): Already tuned. Skipping...")
+            println("$(d.name): Already tuned. Skipping...")
             continue
         else
             Z, w = svm_readdataset(d.id)
@@ -308,9 +311,9 @@ function svm_alltune()
             end
 
             # Tune parameters by a simple grid search
-            println("$(d.name[1]): Tuning parameters...")
+            println("$(d.name): Tuning parameters...")
             γ, C = svm_tune(Z, w)
-            println("\n$(d.name[1]): done. Parameters: γ = $(γ), C = $(C)")
+            println("\n$(d.name): done. Parameters: γ = $(γ), C = $(C)")
 
             lock(applock)
             push!(param, d.id => [γ; C])
@@ -325,12 +328,7 @@ function svm_alltests(cont)
     nthreads = Threads.nthreads()
 
     param = Dict()
-
-    if isfile("svm_param.jld2")
-        jld2file = jldopen("svm_param.jld2", "r")
-        param = read(jld2file, "param")
-        close(jld2file)
-    end
+    jld2_read!(param, "param", "svm_param.jld2")
 
     output = "results_svm.jld2"
 
@@ -348,11 +346,7 @@ function svm_alltests(cont)
             "infeas" => Float64[]
         ]
     )
-    if cont && isfile(output)
-        jld2file = jldopen(output, "r")
-        results = read(jld2file, "results")
-        close(jld2file)
-    end
+    jld2_read!(results, "results", output; test = cont)
 
     for id in keys(param)
         d = datasets[datasets.id .== id, :]
