@@ -49,8 +49,11 @@ instancelabels = Dict(
 
 fmt_d = generate_formatter("%'d")
 fmt_lf = generate_formatter("%6.2lf")
+fmt_lf1 = generate_formatter("%5.1lf")
 fmt_e = generate_formatter("%8.2e")
+fmt_e0 = generate_formatter("%7.0e")
 fmt_etex(v) = replace(fmt_e(v), "e+" => "e\$+\$")
+fmt_etex0(v) = replace(fmt_e0(v), "e+" => "e\$+\$")
 
 # read results in JLD2 file
 function read_results(filenames)
@@ -175,6 +178,7 @@ function table_cpu_gpu(
     cpualg,
     gpualg;
     minn = 0,
+    maxn = Inf,
     maxthreads = 500,
     output="",          # additional identifier for output files
     filenames="results.jld2"
@@ -183,40 +187,53 @@ function table_cpu_gpu(
     if !isdir("output")
         mkdir("output")
     end
-    outfile = "output/table_$(inst)_$(output).tex"
+    outfile = "output/table_$(output).tex"
 
     res = read_results(filenames)
-    res = filter_results(res; instance=inst)
-    ns = sort(Int64.(unique(res[:,:n])))
+    res_tmp = filter_results(res; instance=inst[1])
+    ns = sort(Int64.(unique(res_tmp[:,:n])))
+    threads = sort(Int64.(unique(res_tmp[:,:threads])))
 
     tex = open(outfile, "w")
-    write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}llrrrr@{\\extracolsep\\fill}}\n")
-	write(tex, "\\toprule\n")
-	write(tex, "\$n\$ & threads & iter & CPU time (ms) & GPU time (ms) & speedup\\\\\n")
-	write(tex, "\\midrule\n")
+    write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}ll$(repeat("ll", length(inst)))@{\\extracolsep\\fill}}\n")
+    write(tex, "\\toprule\n")
+    write(tex, "& ")
+    for p in inst
+        write(tex, " & \\multicolumn{2}{l}{$(instancelabels[p])}")
+    end
+    write(tex, "\\\\\n")
+    write(tex, "\$n\$ & th $(repeat(" & CPU time & GPU sp up", length(inst)))\\\\\n")
+    write(tex, "\\midrule\n")
     for n in ns
-        if n < minn
+        if (n < minn) || (n > maxn)
             continue
         end
-        Tcpu = filter_results(res; n=n, algorithm=cpualg)
-        Tgpu = filter_results(res; n=n, algorithm=gpualg)
-        if isempty(Tcpu) || isempty(Tgpu)
-            continue
-        end
-        # sort cpu by number of threads
-        sort!(Tcpu, 3)
-        gputime = Tgpu[1,:time][1]
-        cputime = Tcpu[1,:time][1]
-        spup = cputime / gputime
-        write(tex, "$(fmt_d(n)) & $(Tcpu[1,:threads][1]) & $(fmt_lf(Tcpu[1,:iter][1])) & $(fmt_etex(cputime)) & $(fmt_etex(gputime)) & $(fmt_lf(spup)) \\\\\n")
-        for r in eachrow(Tcpu[2:end,:])
-            if r.threads <= maxthreads
-                cputime = r.time
-                spup = cputime / gputime
-                write(tex, "$(fmt_d(n)) & $(r.threads) & $(fmt_lf(r.iter)) & $(fmt_etex(r.time)) & & $(fmt_lf(spup)) \\\\\n")
+        for th in threads
+            if th > maxthreads
+                continue
             end
+            write(tex, "\$10^{$(ceil(Int64, log10(n)))}\$ & $(th)")
+
+            for p in inst
+                Tgpu = filter_results(res; n=n, algorithm=gpualg, instance=p)
+                Tcpu = filter_results(res; n=n, minthreads=th, maxthreads=th, algorithm=cpualg, instance=p)
+                if isempty(Tcpu) || isempty(Tgpu)
+                    write(tex, " & $(!isempty(Tcpu) ? "\\checkmark" : "--") & $(!isempty(Tgpu) ? "\\checkmark" : "--") ")
+                    continue
+                end
+                cputime = Tcpu[1,:time][1]
+                gputime = Tgpu[1,:time][1]
+                spup = cputime / gputime
+                cpuiter = Tcpu[1,:iter][1]
+                gpuiter = Tgpu[1,:iter][1]
+                write(tex, " & $(fmt_etex0(cputime)) ($(strip(fmt_lf1(cpuiter)))) & $(fmt_lf1(spup)) ($(strip(fmt_lf1(gpuiter))))")
+            end
+
+            write(tex, " \\\\\n")
         end
-        write(tex, "\\hline\n")
+        if n < min(ns[end], maxn)
+            write(tex, "\\hline\n")
+        end
     end
     write(tex, "\\botrule\n\\end{tabular*}")
 
@@ -423,6 +440,8 @@ function table_datasets(; abbrv=false)
 end
 
 function generate_all()
+    files = ["results_cpu.jld2", "results_gpu.jld2"]
+
     ###################
     # Speedup CQK
     ###################
@@ -435,7 +454,7 @@ function generate_all()
             ["cqk (CPU, FP64)"];
             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}"),
             plot_basealg=false,
-            filenames=["results.jld2", "results_cpu.jld2"]
+            filenames=files
         )
     end
 
@@ -454,29 +473,31 @@ function generate_all()
             # include 1 thread, as the comparison is with Condat's C code
             minthreads=1,
             #algcuda="simplex (GPU, FP64)",
-            filenames=["results.jld2", "results_cpu.jld2"]
+            filenames=files
         )
     end
 
     ###################
     # Tables CPU vs GPU
     ###################
-    tex_table(
-        "uncorr",
+    table_cpu_gpu(
+        ["uncorr";"weakly corr";"corr"],
         "cqk (CPU, FP32)",      # CPU algorithm
         "cqk (GPU, FP32)",      # GPU algorithm
-        filenames=["results.jld2", "results_cpu.jld2"],
+        filenames=files,
         output="FP32",
-        minn = 10^5,
+        minn = 10^4,
+        maxn = 10^8,
         maxthreads = 64
     )
     table_cpu_gpu(
-        "uncorr",
+        ["uncorr";"weakly corr";"corr"],
         "cqk (CPU, FP64)",      # CPU algorithm
         "cqk (GPU, FP64)",      # GPU algorithm
-        filenames=["results.jld2", "results_cpu.jld2"],
+        filenames=files,
         output="FP64",
-        minn = 10^5,
+        minn = 10^4,
+        maxn = 10^8,
         maxthreads = 64
     )
 
