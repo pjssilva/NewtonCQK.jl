@@ -248,7 +248,7 @@ function simplex_newton(
 
         λ = (r - sumy) / len
 
-        if abs(λ) < eps(T)^0.75 || isfeasible(total, r, y)
+        if isfeasible(total, r, y)
             # y is the solution!
             return T0, 1, :solved
         end

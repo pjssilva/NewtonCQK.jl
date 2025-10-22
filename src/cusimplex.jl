@@ -19,11 +19,6 @@ function cusimplex_newton(y, x0, r::T, maxiters) where {T<:AbstractFloat}
     # initialize λ
     if isempty(x0)
         λ = (r - sum(y)) / length(y)
-
-        if abs(λ) < eps(T)^0.75
-            # y is the solution!
-            return T0, 1, :solved
-        end
     else
         sumy, len = mapreduce(cusimplex_init, .+, y, x0; init=(T0, T0))
 
