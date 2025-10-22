@@ -406,7 +406,7 @@ int newton(cqk_problem *restrict p, double *x0, double *x) {
             lambda -= phi/deriv;
             /* If the Newton step is null, the possible precision was
                already achived. */
-            if (old_lambda == lambda) {
+            if ((old_lambda == lambda) || (fabs(lambda) < PREC)) {   // NEW STOP
                 phi = 0.0;
                 break;
             }

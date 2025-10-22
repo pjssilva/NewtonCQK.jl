@@ -128,11 +128,13 @@ int newton(cqk_problem *restrict p, double *x0, double *x);
 
 /* Precision required in the stopping criteria, it is set very high to
    ensure that the problems are solved "exactly". */
-#define PREC 1.0e-12
+// #define PREC 1.0e-12
+#define PREC 1.8189894035458565e-12
 
 /* If a bracket interval becomes very narrow, assume that its mid
    point is the solution. */
-#define BRACKETPREC 2.2204460492503131e-16
+// #define BRACKETPREC 2.2204460492503131e-16
+#define BRACKETPREC 1.8189894035458565e-12
 
 /********** Interface to define new methods 
 
