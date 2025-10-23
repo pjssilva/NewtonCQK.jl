@@ -98,11 +98,12 @@ function read_results(filenames)
 end
 
 function filter_results(allres;
-    instance="", n=0, minthreads=1, maxthreads=500, algorithm=""
+    instance="", minn=0, maxn=10^20, minthreads=1, maxthreads=500, algorithm=""
 )
     return allres[
         (!isempty(instance) ? allres.Instance .== instance : allres.Instance .>= "") .&
-        (n > 0 ? allres.n .== n : allres.n .>= 0) .&
+        (allres.n .>= minn) .&
+        (allres.n .<= maxn) .&
         (allres.threads .>= minthreads) .&
         (allres.threads .<= maxthreads) .&
         (!isempty(algorithm) ? allres.Algorithm .== algorithm : allres.Algorithm .>= "") .&
@@ -155,8 +156,13 @@ function table_cpu_gpu(
             write(tex, "\$10^{$(ceil(Int64, log10(n)))}\$ & $(th)")
 
             for p in inst
-                Tgpu = filter_results(res; n=n, algorithm=gpualg, instance=p)
-                Tcpu = filter_results(res; n=n, minthreads=th, maxthreads=th, algorithm=cpualg, instance=p)
+                Tgpu = filter_results(
+                    res; minn=n, maxn=n, algorithm=gpualg, instance=p
+                )
+                Tcpu = filter_results(
+                    res; minn=n, maxn=n, minthreads=th, maxthreads=th,
+                    algorithm=cpualg, instance=p
+                )
                 if isempty(Tcpu) || isempty(Tgpu)
                     write(tex, " & $(!isempty(Tcpu) ? "\\checkmark" : "--") & $(!isempty(Tgpu) ? "\\checkmark" : "--") ")
                     continue
@@ -185,7 +191,8 @@ end
 # IMPORTANT: unless time = Inf, it is considered that all algorithms solved all problems.
 function pp(
     algs;
-    n=0,
+    minn=0,
+    maxn=10^20,
     minthreads=1,
     maxthreads=500,
     title="CPU time (ms)",
@@ -212,7 +219,9 @@ function pp(
     end
 
     # Filter results, excluding unsolved instances
-    res = filter_results(res, n=n, minthreads=minthreads, maxthreads=maxthreads)
+    res = filter_results(
+        res, minn=minn, maxn=maxn, minthreads=minthreads, maxthreads=maxthreads
+    )
 
     T = Matrix{Float64}(undef, 0, length(algs))
     for p in inst
@@ -291,14 +300,19 @@ function plot_speedup(
             ii = inst[k]
             aa = alg[1]
         end
-        T = filter_results(res; instance=ii, n=n, minthreads=minthreads, algorithm=aa)
+        T = filter_results(
+            res; instance=ii, minn=n, maxn=n,
+            minthreads=minthreads, algorithm=aa
+        )
         if isempty(T)
             # no instance solved!
             return
         end
         # base runtime
-        bt = filter_results(res; instance=ii, n=n,
-                            maxthreads=1, algorithm=basealg)
+        bt = filter_results(
+            res; instance=ii, minn=n, maxn=n,
+            maxthreads=1, algorithm=basealg
+        )
         if isempty(bt)
             # test not found for the base algorithm
             return
@@ -323,8 +337,10 @@ function plot_speedup(
 
     # cuda (only takes effect if plot is relative to algorithms)
     if !isempty(algcuda) && (length(inst) == 1)
-        cudat = filter_results(res; instance=inst[1], n=n,
-                            maxthreads=1, algorithm=algcuda)
+        cudat = filter_results(
+            res; instance=inst[1], minn=n, maxn=n,
+            maxthreads=1, algorithm=algcuda
+        )
         if !isempty(cudat)
             cudatime = cudat[1,:time]
             fig = plot!(
