@@ -7,6 +7,16 @@ datasets = OpenML.list_datasets(
     output_format = DataFrame
 )
 
+function jld2_read(objectname, filename; test = true)
+    output = nothing
+    if isfile(filename) && test
+        jld2file = jldopen(filename, "r")
+        output = read(jld2file, objectname)
+        close(jld2file)
+    end
+    return output
+end
+
 # Objective function
 function f(x, H, Z, y)
     return 0.5 * (x' * H(Z) * x) - sum(sign.(y) .* x)
@@ -310,6 +320,33 @@ function svm_merge_params()
     end
 end
 
+# Try to extract source of a dataset
+function svm_dataset_source(id)
+    source = ""
+    # Dataset description in Markdown
+    mdtext = OpenML.describe_dataset(id)
+    # Search for the paragraph containing the word "Source"
+    par = 0
+    for i in 1:length(mdtext)
+        if contains(string(mdtext.content[i]), "Source")
+            par = i
+            break
+        end
+    end
+    if par > 0
+        # Search within the paragraph
+        for i in 1:(length(mdtext.content[par].content)-2)
+            if contains(string(mdtext.content[par].content[i]), "Source")
+                if typeof(mdtext.content[par].content[i+2]) == Markdown.Link
+                    source = mdtext.content[par].content[i+2].text
+                end
+                break
+            end
+        end
+    end
+    return source
+end
+
 # Run tuning
 function svm_alltune()
     # Merge all parameter files to collect old, possibly unfinished tests
@@ -331,6 +368,9 @@ function svm_alltune()
             println("$(d.name): Already tuned. Skipping...")
             continue
         else
+            if isempty(svm_dataset_source(d.id))
+                continue
+            end
             Z, w = svm_readdataset(d.id)
             if isnothing(Z)
                 continue

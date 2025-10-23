@@ -14,6 +14,7 @@ using CUDA
 using SparseArrays
 using Distances
 using OpenML
+using Markdown
 
 # using ThreadPinning
 # pinthreads(:cores)
