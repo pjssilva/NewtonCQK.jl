@@ -387,14 +387,14 @@ function table_datasets(; abbrv=false)
 
     tex = open(output, "w")
     write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}lrrrr@{\\extracolsep\\fill}}\n")
-	write(tex, "\\toprule\n")
-	write(tex, "Dataset & instances & features & \$\\gamma\$ & \$C\$\\\\\n")
-	write(tex, "\\midrule\n")
-    for k in keys(param)
-        d = datasets[datasets.id .== k, :]
+    write(tex, "\\toprule\n")
+    write(tex, "Dataset & instances & features & \$\\gamma\$ & \$C\$\\\\\n")
+    write(tex, "\\midrule\n")
+    for id in keys(param)
+        d = datasets[datasets.id .== id, :]
         ni = d.NumberOfInstances[1]
         nf = d.NumberOfFeatures[1] - 1
-        gamma, C = param[k]
+        gamma, C = param[id]
         if abbrv
             final = findfirst("_seed", d.name[1])
             final = isnothing(final) ? length(d.name[1]) : final[1] - 1
@@ -402,6 +402,30 @@ function table_datasets(; abbrv=false)
         else
             dname = replace(d.name[1], "_" => "\\_")
         end
+
+        # Try to extract source
+#         source = ""
+#         mdtext = OpenML.describe_dataset(id)   # Dataset description in Markdown
+#         # Search for the paragraph containing the word "Source"
+#         par = 0
+#         for i in 1:length(mdtext)
+#             if contains(string(mdtext.content[i]), "Source")
+#                 par = i
+#                 break
+#             end
+#         end
+#         if par > 0
+#             # Search within the paragraph
+#             for i in 1:(length(mdtext.content[par].content)-2)
+#                 if contains(string(mdtext.content[par].content[i]), "Source")
+#                     if typeof(mdtext.content[par].content[i+2]) == Markdown.Link
+#                         source = mdtext.content[par].content[i+2].text
+#                     end
+#                     break
+#                 end
+#             end
+#         end
+
         write(tex, "\\texttt{$(dname)} & $(fmt_d(ni)) & $(fmt_d(nf)) & $(fmt_lf(gamma)) & $(fmt_lf(C)) \\\\\n")
     end
     write(tex, "\\botrule\n\\end{tabular*}")
