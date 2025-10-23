@@ -47,6 +47,7 @@ instancelabels = Dict(
     "corr"          => "Correlated"
 )
 
+# Formats
 fmt_d = generate_formatter("%'d")
 fmt_lf = generate_formatter("%6.2lf")
 fmt_lf1 = generate_formatter("%5.1lf")
@@ -110,68 +111,6 @@ function filter_results(allres;
     ]
 end
 
-# construct a filtered table from data
-# algs is the vector of INDICES of algorithms to be considered
-# n=0, threads=0 or, algs=[] indicate that no corresponding filter is applied
-# set latex=true to store formated numbers as strings (for LaTeX) and bold best values
-function matrix(
-    test_id; n=0, minthreads=1, maxthreads=500, algs=[], latex=true, bold=false
-)
-    # read results
-    allres = read_results("results.jld2")
-
-    if isempty(algs)
-        algs = unique(res.Algorithm)
-    end
-
-    # filter results
-    res = allres[
-        (n > 0 ? allres.n .== n : allres.n .>= 0) .&
-        (allres.threads .>= minthreads) .&
-        (allres.threads .<= maxthreads)
-        , :
-    ]
-
-    # construct the final matrix
-    T = Matrix{Any}(undef, size(res, 1) + 1, 3 + 2*(size(res, 2) - 3))
-    T[1, 1:3] = ["Test"; "n"; "threads"]
-    c = 4
-    for a in algs
-        T[1, c] = "$(TESTS[test_id].algnames[a]) iter"
-        T[1, c + 1] = "$(TESTS[test_id].algnames[a]) time"
-        c += 2
-    end
-    for l in 1:size(cres, 1)
-        row = Vector(cres[l, 1:3])
-        if latex
-            row[2] = fmt_d(row[2])
-        end
-        best = Inf
-        ibest = 0
-        for c in 4:size(cres, 2)
-            means = mean(reinterpret(reshape, Float64, cres[l, c]); dims=2)[:]
-            # transform to miliseconds (ms)
-            means[2] *= 1e-6
-            if latex
-                append!(row, [fmt_lf(means[1]); fmt_e(means[2])])
-            else
-                append!(row, means)
-            end
-            if means[2] < best
-                best = means[2]
-                ibest = length(row)
-            end
-        end
-        if latex && bold
-            # bold best value
-            row[ibest] = "\\bf $(row[ibest])"
-        end
-        T[l + 1, :] .= row
-    end
-
-    return T
-end
-
 # write LaTeX file of a table
 function table_cpu_gpu(
     inst,
@@ -184,10 +123,11 @@ function table_cpu_gpu(
     filenames="results.jld2"
 )
     @assert length(cpualg) == length(gpualg) "Lists of CPU and GPU algorithms must have the same size"
+
     if !isdir("output")
         mkdir("output")
     end
-    outfile = "output/table_$(output).tex"
+    outfile = "output/table$(output).tex"
 
     res = read_results(filenames)
     res_tmp = filter_results(res; instance=inst[1])
@@ -244,46 +184,58 @@ end
 # plot the figure of a performance profile of CPU times
 # IMPORTANT: unless time = Inf, it is considered that all algorithms solved all problems.
 function pp(
-    test_id;
+    algs;
     n=0,
     minthreads=1,
     maxthreads=500,
-    algs=[],
     title="CPU time (ms)",
-    alglabels=String[]
+    output="",
+    filenames="results.jld2"
 )
     if !isdir("output")
         mkdir("output")
     end
-    output = "output/pp_$(TESTS[test_id].name).pdf"
-    T = matrix(test_id; n=n, minthreads=minthreads, maxthreads=maxthreads, latex=false)
-    if isempty(algs)
-        algs = 1:Int((size(T, 2) - 3) / 2)
-    end
-    if isempty(alglabels)
-        alglabels = Vector{String}(undef, maximum(algs))
+    output = "output/pp$(output).pdf"
+
+    res = read_results(filenames)
+
+    # Instances that at least one algorithm in algs was applied
+    inst = String[]
+    for p in unique(res.Instance)
         for a in algs
-            alglabels[a] = TESTS[test_id].algnames[a]
+            Tinst = filter_results(res, instance=p, algorithm=a)
+            if !isempty(Tinst)
+                push!(inst, p)
+                break
+            end
         end
     end
-    # capture the names of algorithms from TESTS
-    algnames = String[]
-    Tcols = Int64[]
-    for a in algs
-        push!(algnames, TESTS[test_id].algnames[a])
-        push!(Tcols, 3 + 2*a)
+
+    # Filter results, excluding unsolved instances
+    res = filter_results(res, n=n, minthreads=minthreads, maxthreads=maxthreads)
+
+    T = Matrix{Float64}(undef, 0, length(algs))
+    for p in inst
+        T = [T; transpose(fill(Inf, length(algs)))]
+        for a in 1:length(algs)
+            Talg = filter_results(res, instance=p, algorithm=algs[a])
+            if !isempty(Talg)
+                T[end,a] = Talg.time[1]
+            end
+        end
     end
+
     fig = performance_profile(
         PlotsBackend(),
-        Float64.(T[2:end, Tcols]),
-        alglabels;
+        Float64.(T),
+        [alglabels[algs[a]] for a = 1:length(algs)];
         title=title,
         logscale=true,
         #fontfamily="Computer Modern",
         lw=2#, color=:black, ls=:auto
     )
     savefig(fig, output)
-    println("File $(output) was generated. Rename it if necessary.")
+    println("File $(output) was generated.")
 end
 
 # relative speedup
@@ -313,9 +265,9 @@ function plot_speedup(
         mkdir("output")
     end
     if length(alg) > 1
-        outfile = "output/speedup_$(output)_$(inst[1])_$(n).pdf"
+        outfile = "output/speedup$(output)_$(replace(inst[1], " " => "_"))_$(n).pdf"
     else
-        outfile = "output/speedup_$(output)_$(alg[1])_$(n).pdf"
+        outfile = "output/speedup$(output)_$(replace(alg[1], " " => "_"))_$(n).pdf"
     end
     res = read_results(filenames)
 
@@ -403,6 +355,9 @@ end
 
 # LaTex table datasets
 function table_datasets(; abbrv=false)
+    if !isfile("svm_param.jld2")
+        return
+    end
     jld2file = jldopen("svm_param.jld2", "r")
     param = read(jld2file, "param")
     close(jld2file)
@@ -485,7 +440,7 @@ function generate_all()
         "cqk (CPU, FP32)",      # CPU algorithm
         "cqk (GPU, FP32)",      # GPU algorithm
         filenames=files,
-        output="FP32",
+        output="_FP32",
         minn = 10^4,
         maxn = 10^8,
         maxthreads = 64
@@ -495,10 +450,20 @@ function generate_all()
         "cqk (CPU, FP64)",      # CPU algorithm
         "cqk (GPU, FP64)",      # GPU algorithm
         filenames=files,
-        output="FP64",
+        output="_FP64",
         minn = 10^4,
         maxn = 10^8,
         maxthreads = 64
+    )
+
+    ###################
+    # Performance profile
+    ###################
+    pp(
+        ["simplex (CPU, FP64)"; "sp simplex (CPU, FP64)"; "Condat C"; "P Condat (simplex)"],
+        filenames=files,
+        output="_simplex",
+        maxthreads = 1
     )
 
     ###################

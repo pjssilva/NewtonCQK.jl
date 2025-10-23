@@ -1,7 +1,3 @@
-using Statistics
-
-BLAS.set_num_threads(1)
-
 include("spg.jl")
 
 # Filter datasets for binary classification
@@ -76,7 +72,7 @@ function svm_solve(
         # CQK
         b = @benchmarkable cqk!($sol, $P, chunks=($chunks), x0=($x))
         time = estimatetime(b)
-        iter, flag = cqk(P, nchunks=nthreads, x0=(x))[2:3]
+        iter, flag = cqk!(sol, P, nchunks=nthreads, x0=(x))
         infeas = abs(dot(P.b, sol) - P.r)   # P.r = 0
         push!(results,
              [instance, n, outiter, "cqk", nthreads, iter, flag, time, infeas])
@@ -85,7 +81,7 @@ function svm_solve(
         if nthreads == 1
             b = @benchmarkable cms_cqn!($sol, $P, x0=($x))
             time = estimatetime(b)
-            iter, flag = cms_cqn(P, x0=(x))[2:3]
+            iter, flag = cms_cqn!(sol, P, x0=(x))
             infeas = abs(dot(P.b, sol) - P.r)   # P.r=0
             push!(results,
                  [instance, n, outiter, "cqn", 1, iter, flag, time, infeas])
@@ -285,23 +281,53 @@ function svm_readdataset(id)
     return Z, w
 end
 
-function jld2_read!(output, object, filename; test = true)
-    if isfile(filename) && test
-        jld2file = jldopen(filename, "r")
-        output = read(jld2file, object)
-        close(jld2file)
+function svm_merge_params()
+    # Read main parameter file
+    param = jld2_read("param", "svm_param.jld2")
+    if isnothing(param)
+        param = Dict()
+    end
+
+    # Search for partial parameter files and merge their content with 'param'
+    files = readdir(".")
+    for f in files
+        if startswith(f, "svm_param_") && endswith(f, ".jld2")
+            parami = jld2_read("param", f)
+            param = merge(param, parami)
+        end
+    end
+    try
+        jldsave("svm_param.jld2"; param)
+
+        # Delete partial files, only executed if svm_param.jld2 was updated
+        for f in files
+            if startswith(f, "svm_param_") && endswith(f, ".jld2")
+                rm(f)
+            end
+        end
+    catch
+        println("Fail to save merged parameter file.")
     end
 end
 
+# Run tuning
 function svm_alltune()
-    param = Dict()
-    jld2_read!(param, "param", "svm_param.jld2")
+    # Merge all parameter files to collect old, possibly unfinished tests
+    svm_merge_params()
 
-    applock = SpinLock()
+    param_all = jld2_read("param", "svm_param.jld2")
+    if isnothing(param_all)
+        param_all = Dict()
+    end
 
     # Tuning
     Threads.@threads for d in eachrow(datasets)
-        if haskey(param, d.id)
+        param = jld2_read("param", "svm_param_$(Threads.threadid()).jld2")
+        if isnothing(param)
+            param = Dict()
+        end
+
+        if haskey(param_all, d.id)
             println("$(d.name): Already tuned. Skipping...")
             continue
         else
@@ -315,38 +341,40 @@ function svm_alltune()
             γ, C = svm_tune(Z, w)
             println("\n$(d.name): done. Parameters: γ = $(γ), C = $(C)")
 
-            lock(applock)
             push!(param, d.id => [γ; C])
-            # Update parameters file
-            jldsave("svm_param.jld2"; param)
-            unlock(applock)
+
+            # Save parameters file
+            jldsave("svm_param_$(Threads.threadid()).jld2"; param)
         end
     end
+
+    svm_merge_params()
 end
 
 function svm_alltests(cont)
     nthreads = Threads.nthreads()
 
-    param = Dict()
-    jld2_read!(param, "param", "svm_param.jld2")
+    param = jld2_read("param", "svm_param.jld2")
 
     output = "results_svm.jld2"
 
     # Results
-    results = DataFrame(
-        [
-            "Instance" => String[]
-            "n" => Int64[]
-            "outiter" => Int64[]
-            "Algorithm" => String[]
-            "threads" => Int64[]
-            "iter" => Int64[]
-            "st" => []
-            "time" => Float64[]
-            "infeas" => Float64[]
-        ]
-    )
-    jld2_read!(results, "results", output; test = cont)
+    results = jld2_read("results", output; test = cont)
+    if isnothing(results)
+        results = DataFrame(
+            [
+                "Instance" => String[]
+                "n" => Int64[]
+                "outiter" => Int64[]
+                "Algorithm" => String[]
+                "threads" => Int64[]
+                "iter" => Int64[]
+                "st" => []
+                "time" => Float64[]
+                "infeas" => Float64[]
+            ]
+        )
+    end
 
     for id in keys(param)
         d = datasets[datasets.id .== id, :]
