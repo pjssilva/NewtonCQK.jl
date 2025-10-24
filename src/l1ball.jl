@@ -79,6 +79,9 @@ function l1ball_proj!(
     chunks::Vector{C}=AbstractChunk[],
     x0::Vector{T}=T[]
 ) where {T<:AbstractFloat,C<:AbstractChunk}
+    @assert r >= zero(T) "r cannot be negative"
+    @assert !isinf(r) "r cannot be Inf"
+
     # Asserts that the user is not doing aliasing between input and output
     @assert sol !== y "sol and y vectors cannot be the same"
 
@@ -138,6 +141,9 @@ function spl1ball_proj(
     chunks::Vector{C}=AbstractChunk[],
     x0::Vector{T}=T[]
 ) where {T<:AbstractFloat,C<:AbstractChunk}
+    @assert r >= zero(T) "r cannot be negative"
+    @assert !isinf(r) "r cannot be Inf"
+
     if isempty(chunks)
         chunks = initialize_chunks(DynamicChunk, length(y); nchunks=nchunks)
     end

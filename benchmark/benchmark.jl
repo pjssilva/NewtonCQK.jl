@@ -15,6 +15,9 @@ using SparseArrays
 using Distances
 using OpenML
 using Markdown
+using MatrixDepot
+
+include("spg.jl")
 
 # using ThreadPinning
 # pinthreads(:cores)
@@ -52,6 +55,9 @@ end
 
 # SVM
 include("tests_svm.jl")
+
+# LASSO
+include("tests_lasso.jl")
 
 # Functions to convert data
 include("convert.jl")

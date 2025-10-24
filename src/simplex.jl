@@ -7,11 +7,15 @@
 # original projections onto the simplex are based on (concrete) Vectors while
 # projection onto the l1-ball use BroadcastVector to differentiate between the
 # two.
-@inline function fetch_accum!(total::Base.RefValue{T}, y::Vector{T}, i) where {T}
+@inline function fetch_accum!(
+    total::Base.RefValue{T}, y::Vector{T}, i
+) where {T}
     return y[i]
 end
 
-@inline function fetch_accum!(total::Base.RefValue{T}, y::BroadcastVector{T}, i) where {T}
+@inline function fetch_accum!(
+    total::Base.RefValue{T}, y::BroadcastVector{T}, i
+) where {T}
     total[] += y[i]
     return y[i]
 end
@@ -63,7 +67,8 @@ function simplex_init(
 
     # At this point, chunk.active[1:wait_idx-1] is the waiting list
     # Processes it in reverse order, reusing the indices
-    # At the end, k will represent the position of the leftmost index in chunk.active
+    # At the end, k will represent the position of the leftmost index in
+    # chunk.active
     k = wait_idx
     @inbounds for i in (wait_idx - 1):-1:1
         ii = chunk.active[i]
@@ -85,6 +90,7 @@ end
 function simplex_init(
     y::AbstractVector{T}, x0::AbstractVector{T}, r, chunk::AbstractChunk
 ) where {T<:AbstractFloat}
+    addfirst!(chunk)
     wait_idx = 1
     len = 0
     k = 0
@@ -96,10 +102,11 @@ function simplex_init(
         new_x = yvali + λ
         if (new_x > zero(T)) && ispositive(yvali, y)
             k = addnext!(chunk, k, i)
-            if x0[i] > zero(T)        # λ is computed over the indices i s.t. x0[i] > 0
+            # λ is computed over the indices i s.t. x0[i] > 0
+            if x0[i] > zero(T)
                 len += 1
                 sumy += yvali
-                λ -= new_x / len
+                (len > 1) ? λ -= new_x / len : λ = r - yvali
                 new_x = yvali + λ
             end
             if new_x >= r
@@ -121,7 +128,8 @@ function simplex_init(
 
     # At this point, chunk.active[1:wait_idx-1] is the waiting list
     # Processes it in reverse order, reusing the indices
-    # At the end, k will represent the position of the leftmost index in chunk.active
+    # At the end, k will represent the position of the leftmost index in
+    # chunk.active
     k = wait_idx
     @inbounds for i in (wait_idx - 1):-1:1
         ii = chunk.active[i]
@@ -132,7 +140,7 @@ function simplex_init(
             if x0[i] > zero(T)
                 len += 1
                 sumy += y[ii]
-                λ -= new_x / len
+                (len > 1) ? λ -= new_x / len : λ = r - y[ii]
             end
         end
     end
@@ -193,7 +201,7 @@ function simplex_phi_step(
         chunk.start = k
     end
 
-    return SA[phi, chunk.final - chunk.start - 1]
+    return SA[phi, chunk.final - chunk.start + 1]
 end
 
 # Compute phi and phi' considering rhi - r >= 0
@@ -203,7 +211,8 @@ function simplex_phi_step(
     phi = zero(T)
 
     # Run the vector chunk.active[chunk.start:chunk:final]
-    # The condition for fixing variables (rhi - r >= 0) holds even before computing phi
+    # The condition for fixing variables (rhi - r >= 0) holds even before
+    # computing phi
     k = chunk.start
     @inbounds for i in (chunk.start):(chunk.final)
         ii = chunk.active[i]
@@ -246,13 +255,12 @@ function simplex_newton(
             chunk -> simplex_init(y, r, chunk), .+, chunks; init=(T0, T0, T0)
         )
 
-        λ = (r - sumy) / len
-
         if isfeasible(total, r, y)
             # y is the solution!
             return T0, 1, :solved
         end
 
+        λ = (r - sumy) / len
         φ, φ′ = simplex_phi(y, λ, r, true, chunks)
     else
         total, sumy, len = altmapreduce(
@@ -271,7 +279,6 @@ function simplex_newton(
             # As this is a rare situation, we prefer not to pay the price of additional computations.
             λ = max(r / length(y), -y[1])
         end
-
         φ, φ′ = simplex_phi(y, λ, r, false, chunks)
     end
     chunks = compress_chunks(chunks)
@@ -373,6 +380,9 @@ function simplex_proj!(
     chunks::Vector{C}=AbstractChunk[],
     x0::Vector{T}=T[]
 ) where {T<:AbstractFloat,C<:AbstractChunk}
+    @assert r >= zero(T) "r cannot be negative"
+    @assert !isinf(r) "r cannot be Inf"
+
     # Asserts that the user is not doing aliasing between input and output
     @assert sol !== y "sol and y vectors cannot be the same"
 
@@ -427,6 +437,9 @@ function spsimplex_proj(
     chunks::Vector{C}=AbstractChunk[],
     x0::Vector{T}=T[]
 ) where {T<:AbstractFloat,C<:AbstractChunk}
+    @assert r >= zero(T) "r cannot be negative"
+    @assert !isinf(r) "r cannot be Inf"
+
     if isempty(chunks)
         chunks = initialize_chunks(DynamicChunk, length(y); nchunks=nchunks)
     end

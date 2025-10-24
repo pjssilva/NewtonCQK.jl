@@ -1,5 +1,3 @@
-include("spg.jl")
-
 # Filter datasets for binary classification
 datasets = OpenML.list_datasets(
     #tag = "uci",
@@ -77,15 +75,17 @@ function svm_solve(
     # P is relative to x, which must be updated before by proj!. For benchmarking,
     # we start at x0 = x.
     sol = similar(P.a)
-    chunks = initialize_chunks(length(sol); nchunks=nthreads)
+    chunks = initialize_chunks(n; nchunks=nthreads)
     function b_callback(x, outiter)
         # CQK
         b = @benchmarkable cqk!($sol, $P, chunks=($chunks), x0=($x))
         time = estimatetime(b)
         iter, flag = cqk!(sol, P, nchunks=nthreads, x0=(x))
         infeas = abs(dot(P.b, sol) - P.r)   # P.r = 0
-        push!(results,
-             [instance, n, outiter, "cqk", nthreads, iter, flag, time, infeas])
+        push!(
+            results,
+            [instance, n, outiter, "cqk", nthreads, iter, flag, time, infeas]
+        )
 
         # CMS_CQN
         if nthreads == 1
@@ -93,8 +93,10 @@ function svm_solve(
             time = estimatetime(b)
             iter, flag = cms_cqn!(sol, P, x0=(x))
             infeas = abs(dot(P.b, sol) - P.r)   # P.r=0
-            push!(results,
-                 [instance, n, outiter, "cqn", 1, iter, flag, time, infeas])
+            push!(
+                results,
+                [instance, n, outiter, "cqn", 1, iter, flag, time, infeas]
+            )
         end
 
         return false
