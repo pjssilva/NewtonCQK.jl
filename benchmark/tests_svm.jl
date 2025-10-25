@@ -28,7 +28,7 @@ end
 # Projection (solve particular CQK)
 function proj!(p, z, x0, chunks, P::CQKProblem)
     P.a .= z
-    _, flag = cqk!(p, P, chunks=(chunks), x0=(x0))
+    _, flag = cqk!(p, P, chunks=(chunks))
     return (flag == :solved)
 end
 
