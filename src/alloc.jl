@@ -31,6 +31,7 @@ Pre-allocates workspace and returns the appropriate structure.
 This is useful if you need to execute a function several times in sequence.
 """
 function initialize_chunks(C::Type, n; nchunks=Threads.nthreads())
+    nchunks = min(nchunks, n)
     chunks = Vector{C}(undef, nchunks)
     len, inc = divrem(n, nchunks)
     start = 1

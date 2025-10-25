@@ -53,7 +53,7 @@ function simplex_init(
             len += 1
             k = addnext!(chunk, k, i)
             sumy += yvali
-            λ -= new_x / len
+            λ = (r - sumy) / len
             if yvali + λ >= r
                 # End of the waiting list
                 wait_idx = lenactive(chunk, k)
@@ -78,7 +78,7 @@ function simplex_init(
             chunk.active[k] = ii
             len += 1
             sumy += y[ii]
-            λ -= new_x / len
+            λ = (r - sumy) / len
         end
     end
     chunk.start = k
@@ -95,7 +95,7 @@ function simplex_init(
     len = 0
     k = 0
     sumy = zero(T)
-    λ = r
+    λ = T(Inf)
     total = Ref(sumy)
     @inbounds for i in (chunk.ystart):(chunk.yfinal)
         yvali = fetch_accum!(total, y, i)
@@ -106,7 +106,7 @@ function simplex_init(
             if x0[i] > zero(T)
                 len += 1
                 sumy += yvali
-                (len > 1) ? λ -= new_x / len : λ = r - yvali
+                λ = (r - sumy) / len
                 new_x = yvali + λ
             end
             if new_x >= r
@@ -140,7 +140,7 @@ function simplex_init(
             if x0[i] > zero(T)
                 len += 1
                 sumy += y[ii]
-                (len > 1) ? λ -= new_x / len : λ = r - y[ii]
+                λ = (r - sumy) / len
             end
         end
     end
