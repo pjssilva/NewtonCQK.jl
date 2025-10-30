@@ -93,13 +93,13 @@ function simplex_init(
     k = addfirst!(chunk)
     wait_idx = 1
     @inbounds if x0[chunk.ystart] > zero(T)
-        len = 0
-        sumy = zero(T)
-        λ = r - y[chunk.ystart]
-    else
         len = 1
         sumy = y[chunk.ystart]
         λ = r - sumy
+    else
+        len = 0
+        sumy = zero(T)
+        λ = r - y[chunk.ystart]
     end
     total = Ref(sumy)
     @inbounds for i in (chunk.ystart + 1):(chunk.yfinal)
