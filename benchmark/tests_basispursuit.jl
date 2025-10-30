@@ -61,7 +61,7 @@ function bp_solve(
         infeas = max(0.0, sum(abs.(sol)) - r)
         push!(
             results,
-            [instance, n, outiter, "Specialized Algorithm 1 without x0", nthreads, iter, flag, time, infeas]
+            [instance, n, outiter, "Our algorithm without x0", nthreads, iter, flag, time, infeas]
         )
 
         b = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks), x0=($x))
@@ -70,7 +70,7 @@ function bp_solve(
         infeas = max(0.0, sum(abs.(sol)) - r)
         push!(
             results,
-            [instance, n, outiter, "Specialized Algorithm 1 with x0", nthreads, iter, flag, time, infeas]
+            [instance, n, outiter, "Our algorithm 1 with x0", nthreads, iter, flag, time, infeas]
         )
 
         # Dai and Chen's algorithm
@@ -157,11 +157,15 @@ function bp_alltests(cont)
                 println("Error while reading $(mat)")
                 continue
             end
-            rhs = A*ones(size(A,2))
+            n = size(A,2)
+            sparsex = zeros(n)
+            nsparse = ceil(Int64, 0.05*n))
+            sparsex[rand(1:n, nsparse)] .= 1.0
+            rhs = A * sparsex
 
             _, _, flag = bp_solve(
                 mat, A, rhs, nthreads;
-                results = results, r = ceil(size(A,1)/100)
+                results = results, r = nsparse/10)
             )
 
             if flag != :solved
