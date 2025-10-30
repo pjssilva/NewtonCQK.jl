@@ -159,13 +159,13 @@ function bp_alltests(cont)
             end
             n = size(A,2)
             sparsex = zeros(n)
-            nsparse = ceil(Int64, 0.05*n))
+            nsparse = ceil(Int64, 0.05*n)
             sparsex[rand(1:n, nsparse)] .= 1.0
             rhs = A * sparsex
 
             _, _, flag = bp_solve(
                 mat, A, rhs, nthreads;
-                results = results, r = nsparse/10)
+                results = results, r = nsparse/10
             )
 
             if flag != :solved
