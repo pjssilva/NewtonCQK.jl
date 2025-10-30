@@ -40,9 +40,9 @@ end
 function simplex_init(
     y::AbstractVector{T}, r, chunk::AbstractChunk
 ) where {T<:AbstractFloat}
+    k = addfirst!(chunk)
     wait_idx = 1
     len = 1
-    k = addfirst!(chunk)
     @inbounds sumy = y[chunk.ystart]
     λ = r - sumy
     total = Ref(sumy)
@@ -50,8 +50,8 @@ function simplex_init(
         yvali = fetch_accum!(total, y, i)
         new_x = yvali + λ
         if (new_x > zero(T)) && ispositive(yvali, y)
-            len += 1
             k = addnext!(chunk, k, i)
+            len += 1
             sumy += yvali
             λ = (r - sumy) / len
             if yvali + λ >= r
@@ -59,7 +59,7 @@ function simplex_init(
                 wait_idx = lenactive(chunk, k)
                 len = 1
                 sumy = yvali
-                λ = r - sumy
+                λ = r - yvali
             end
         end
     end
@@ -72,12 +72,12 @@ function simplex_init(
     k = wait_idx
     @inbounds for i in (wait_idx - 1):-1:1
         ii = chunk.active[i]
-        new_x = y[ii] + λ
-        if new_x > zero(T)
+        yvali = y[ii]
+        if (yvali + λ > zero(T)) && ispositive(yvali, y)
             k -= 1
             chunk.active[k] = ii
             len += 1
-            sumy += y[ii]
+            sumy += yvali
             λ = (r - sumy) / len
         end
     end
@@ -90,14 +90,19 @@ end
 function simplex_init(
     y::AbstractVector{T}, x0::AbstractVector{T}, r, chunk::AbstractChunk
 ) where {T<:AbstractFloat}
-    addfirst!(chunk)
+    k = addfirst!(chunk)
     wait_idx = 1
-    len = 0
-    k = 0
-    sumy = zero(T)
-    λ = T(Inf)
+    @inbounds if x0[chunk.ystart] > zero(T)
+        len = 0
+        sumy = zero(T)
+        λ = r - y[chunk.ystart]
+    else
+        len = 1
+        sumy = y[chunk.ystart]
+        λ = r - sumy
+    end
     total = Ref(sumy)
-    @inbounds for i in (chunk.ystart):(chunk.yfinal)
+    @inbounds for i in (chunk.ystart + 1):(chunk.yfinal)
         yvali = fetch_accum!(total, y, i)
         new_x = yvali + λ
         if (new_x > zero(T)) && ispositive(yvali, y)
@@ -107,19 +112,20 @@ function simplex_init(
                 len += 1
                 sumy += yvali
                 λ = (r - sumy) / len
-                new_x = yvali + λ
-            end
-            if new_x >= r
                 # End of the waiting list
-                wait_idx = lenactive(chunk, k)
-                if x0[i] > zero(T)
+                if yvali + λ >= r
+                    wait_idx = lenactive(chunk, k)
                     len = 1
                     sumy = yvali
-                    λ = r - sumy
-                else
+                    λ = r - yvali
+                end
+            else
+                # End of the waiting list
+                if new_x >= r
+                    wait_idx = lenactive(chunk, k)
                     len = 0
                     sumy = zero(T)
-                    λ = r
+                    λ = r - yvali
                 end
             end
         end
@@ -133,13 +139,13 @@ function simplex_init(
     k = wait_idx
     @inbounds for i in (wait_idx - 1):-1:1
         ii = chunk.active[i]
-        new_x = y[ii] + λ
-        if new_x > zero(T)
+        yvali = y[ii]
+        if (yvali + λ > zero(T)) && ispositive(yvali, y)
             k -= 1
             chunk.active[k] = ii
             if x0[i] > zero(T)
                 len += 1
-                sumy += y[ii]
+                sumy += yvali
                 λ = (r - sumy) / len
             end
         end
