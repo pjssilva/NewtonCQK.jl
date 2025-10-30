@@ -1,39 +1,45 @@
 # Filter datasets for binary classification
-matrices = [
-    "kneser_10_4_1",
-    "wheel_601",
-    "LargeRegFile",
-    "GL7d21",
-    "Hardesty3"
-]
+matrices_path = "SC_matrices"
+matrices = readdir(matrices_path)
 
 # Objective function
-function f(x, A, b)
-    Axb = @views A*x .- b
-    return 0.5 * dot(Axb, Axb)
+function bp_f(x, A, rhs)
+    Axrhs = @views A*x .- rhs
+    return 0.5 * dot(Axrhs, Axrhs)
 end
 
 # Gradient of objective function
-function g!(g, x, A, b)
-    g .= A' * (A*x .- b)
+function bp_g!(g, x, A, rhs)
+    g .= A' * (A*x .- rhs)
 end
 
 # Projection (solve particular l1-ball projection problem)
-function proj!(p, z, x0, chunks, y, r)
+function bp_proj!(p, z, x0, chunks, y, r)
     y .= z
-    _, flag = l1ball_proj!(p, y, r=(r), chunks=(chunks), x0=(x0))
+    _, flag = l1ball_proj!(p, y, r=(r), chunks=(chunks))
     return (flag == :solved)
 end
 
+function bp_read_matrix(filename)
+    A = []
+    if isfile(filename)
+        file = matopen(filename)
+        A = read(file, "A")
+        close(file)
+    end
+    return A
+end
+
+
 # Apply SPG and optionally benchmark
 # Training data is considered scaled here!
-function lasso_solve(
-    instance, A, b, nthreads;
+function bp_solve(
+    instance, A, rhs, nthreads;
     results = nothing, r = 1.0, verbose = 1
 )
     @assert r > 0 throw(ArgumentError("r must be positive"))
     @assert !isempty(instance) throw(ArgumentError("instance must be provided"))
-    @assert size(A,1) == length(b) throw(DimensionMismatch("A and b have incompatible dimensions"))
+    @assert size(A,1) == length(rhs) throw(DimensionMismatch("A and b have incompatible dimensions"))
 
     n = size(A,2)
 
@@ -48,14 +54,23 @@ function lasso_solve(
     sol = similar(y)
     chunks = initialize_chunks(n; nchunks=nthreads)
     function b_callback(x, outiter)
-        # CQK
-        b = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks), x0=($x))
+        # sparse l1ball
+        b = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks))
         time = estimatetime(b)
-        sol, iter, flag = spl1ball_proj(y, r=(r), nchunks=nthreads, x0=(x))
+        sol, iter, flag = spl1ball_proj(y, r=(r), chunks=(chunks))
         infeas = max(0.0, sum(abs.(sol)) - r)
         push!(
             results,
-            [instance, n, outiter, "spl1ball_proj", nthreads, iter, flag, time, infeas]
+            [instance, n, outiter, "Specialized Algorithm 1 without x0", nthreads, iter, flag, time, infeas]
+        )
+
+        b = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks), x0=($x))
+        time = estimatetime(b)
+        sol, iter, flag = spl1ball_proj(y, r=(r), chunks=(chunks), x0=(x))
+        infeas = max(0.0, sum(abs.(sol)) - r)
+        push!(
+            results,
+            [instance, n, outiter, "Specialized Algorithm 1 with x0", nthreads, iter, flag, time, infeas]
         )
 
         # Dai and Chen's algorithm
@@ -66,14 +81,14 @@ function lasso_solve(
         end
         time = estimatetime(b)
         if nthreads == 1
-            sol, iter, flag = l1ball_condat_s(y, r)
+            sol = l1ball_condat_s(y, r)
         else
-            sol, iter, flag = l1ball_condat_p(y, r, nthreads, 0.001)
+            sol = l1ball_condat_p(y, r, nthreads, 0.001)
         end
         infeas = max(0.0, sum(abs.(sol)) - r)
         push!(
             results,
-            [instance, n, outiter, "P Condat (l1ball)", nthreads, iter, flag, time, infeas]
+            [instance, n, outiter, "Dai and Chen's algorithm", nthreads, -1, :solved, time, infeas]
         )
 
         return false
@@ -84,9 +99,9 @@ function lasso_solve(
     # --------
     spgsol, spgiter, flag = spg(
         n,
-        x -> f(x, A, b),
-        (g, x) -> g!(g, x, A, b),
-        (p, z, x0) -> proj!(p, z, x0, chunks, y, r),
+        x -> bp_f(x, A, rhs),
+        (g, x) -> bp_g!(g, x, A, rhs),
+        (p, z, x0) -> bp_proj!(p, z, x0, chunks, y, r),
         l = -Inf, u = Inf,
         callback = isnothing(results) ? nothing : b_callback,
         maxiters = 500,
@@ -96,7 +111,7 @@ function lasso_solve(
     return spgsol, spgiter, flag
 end
 
-function lasso_executed(results, instance, nthreads)
+function bp_executed(results, instance, nthreads)
     if !isempty(
         results[
             (results.Instance .== instance) .& (results.threads .== nthreads),
@@ -112,10 +127,10 @@ function lasso_executed(results, instance, nthreads)
     return false
 end
 
-function lasso_alltests(cont)
+function bp_alltests(cont)
     nthreads = Threads.nthreads()
 
-    output = "results_lasso.jld2"
+    output = "results_bp.jld2"
 
     # Results
     results = jld2_read("results", output; test = cont)
@@ -136,12 +151,16 @@ function lasso_alltests(cont)
     end
 
     for mat in matrices
-        if !lasso_executed(results, mat, nthreads)
-            A = matrixdepot("*/"*mat)
-            b = A*ones(size(A,2))
+        if !bp_executed(results, mat, nthreads)
+            A = bp_read_matrix(joinpath(matrices_path, mat))
+            if isempty(A)
+                println("Error while reading $(mat)")
+                continue
+            end
+            rhs = A*ones(size(A,2))
 
-            _, _, flag = lasso_solve(
-                mat, A, b, nthreads;
+            _, _, flag = bp_solve(
+                mat, A, rhs, nthreads;
                 results = results, r = ceil(size(A,1)/100)
             )
 

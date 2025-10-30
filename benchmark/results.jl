@@ -369,6 +369,38 @@ function plot_speedup(
     println("File $(outfile) was generated.")
 end
 
+# Try to extract source of a dataset
+function svm_dataset_source(id)
+    source = ""
+
+    try
+        # Dataset description in Markdown
+        mdtext = OpenML.describe_dataset(id)
+        # Search for the paragraph containing the word "Source"
+        par = 0
+        for i in 1:length(mdtext)
+            if contains(string(mdtext.content[i]), "Source")
+                par = i
+                break
+            end
+        end
+        if par > 0
+            # Search within the paragraph
+            for i in 1:(length(mdtext.content[par].content)-2)
+                if contains(string(mdtext.content[par].content[i]), "Source")
+                    if typeof(mdtext.content[par].content[i+2]) == Markdown.Link
+                        source = mdtext.content[par].content[i+2].text
+                    end
+                    break
+                end
+            end
+        end
+    catch
+        source = ""
+    end
+    return source
+end
+
 # LaTex table datasets
 function table_datasets(; abbrv=false)
     if !isfile("svm_param.jld2")
@@ -391,10 +423,13 @@ function table_datasets(; abbrv=false)
     write(tex, "Dataset & instances & features & \$\\gamma\$ & \$C\$\\\\\n")
     write(tex, "\\midrule\n")
     for id in keys(param)
+        γ, C = param[id]
+        if (C == 0.0) || (γ == 0.0)
+            continue
+        end
         d = datasets[datasets.id .== id, :]
         ni = d.NumberOfInstances[1]
         nf = d.NumberOfFeatures[1] - 1
-        gamma, C = param[id]
         if abbrv
             final = findfirst("_seed", d.name[1])
             final = isnothing(final) ? length(d.name[1]) : final[1] - 1
@@ -403,12 +438,76 @@ function table_datasets(; abbrv=false)
             dname = replace(d.name[1], "_" => "\\_")
         end
 
-        write(tex, "\\texttt{$(dname)} & $(fmt_d(ni)) & $(fmt_d(nf)) & $(fmt_lf(gamma)) & $(fmt_lf(C)) \\\\\n")
+        write(tex, "\\texttt{$(dname)} & $(fmt_d(ni)) & $(fmt_d(nf)) & $(fmt_lf(γ)) & $(fmt_lf(C)) \\\\\n")
     end
     write(tex, "\\botrule\n\\end{tabular*}")
 
     close(tex)
     println("File $(output) was generated.")
+end
+
+function bp_plots(
+    instance; measure=:time, legpos=:best, output="", miniter=1, title="", relative=true
+)
+    if !isfile("results_bp.jld2")
+        return
+    end
+
+    jld2file = jldopen("results_bp.jld2", "r")
+    res = read(jld2file, "results")
+    close(jld2file)
+
+    res = res[(res.Instance .== instance) .& (res.outiter .>= miniter),:]
+
+    # base algorithm is the one that contains "without" in its name
+    algs = unique(res.Algorithm[.!contains.(res.Algorithm, "without")])
+    basealg = res[contains.(res.Algorithm, "without"),:Algorithm][1]
+    iters = Int64.(sort(unique(res.outiter)))
+
+    outfile = "output/bp_$(measure)$(output)_$(instance).pdf"
+
+    # base alg times
+    basemeasures = res[contains.(res.Algorithm, "without"), measure]
+
+    xstep = max(1, ceil(Int64, length(iters)/15))
+
+    # initialize plot
+    fig = plot(; title=title,
+        xlabel="iteration",
+        ylabel="relative speedup",
+        legend=legpos,
+        fontfamily="Computer Modern",
+        xticks=miniter:xstep:iters[end]
+    )
+
+    # base alg
+    fig = plot!(
+        iters,
+        relative ? fill(1.0, length(iters)) : basemeasures;
+        label=basealg,
+        markershape=:none,
+        lw=1
+    )
+
+    # algorithms, excludingthe base alg
+    for a in algs
+        measures = res[res.Algorithm .== a, measure]
+
+        if minimum(measures) < 0
+            continue
+        end
+
+        fig = plot!(
+            iters,
+            relative ? measures./basemeasures : measures;
+            label=a,
+            markershape=:none,
+            lw=1
+        )
+    end
+
+    savefig(fig, outfile)
+    println("File $(outfile) was generated.")
 end
 
 function generate_all()

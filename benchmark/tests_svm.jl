@@ -1,9 +1,14 @@
 # Filter datasets for binary classification
-datasets = OpenML.list_datasets(
-    #tag = "uci",
-    filter="number_classes/2/number_instances/1000..100000/number_missing_values/0",
-    output_format = DataFrame
-)
+try
+    datasets = OpenML.list_datasets(
+        filter="number_classes/2/number_instances/50000..1000000/number_missing_values/0",
+        output_format = DataFrame
+    )
+catch
+    datasets = DataFrame()
+    println("Error while list datasets with OpenML. No SVM tests will be performed.")
+    println("This problem occurs probably due when try to access the server. Try again.")
+end
 
 function jld2_read(objectname, filename; test = true)
     output = nothing
@@ -16,17 +21,17 @@ function jld2_read(objectname, filename; test = true)
 end
 
 # Objective function
-function f(x, H, Z, y)
+function svm_f(x, H, Z, y)
     return 0.5 * (x' * H(Z) * x) - sum(sign.(y) .* x)
 end
 
 # Gradient of objective function
-function g!(g, x, H, Z, y)
+function svm_g!(g, x, H, Z, y)
     g .= (H(Z) * x) .- sign.(y)
 end
 
 # Projection (solve particular CQK)
-function proj!(p, z, x0, chunks, P::CQKProblem)
+function svm_proj!(p, z, x0, chunks, P::CQKProblem)
     P.a .= z
     _, flag = cqk!(p, P, chunks=(chunks))
     return (flag == :solved)
@@ -77,10 +82,20 @@ function svm_solve(
     sol = similar(P.a)
     chunks = initialize_chunks(n; nchunks=nthreads)
     function b_callback(x, outiter)
+        # CQK with no warm start
+        b = @benchmarkable cqk!($sol, $P, chunks=($chunks))
+        time = estimatetime(b)
+        iter, flag = cqk!(sol, P, chunks=(chunks))
+        infeas = abs(dot(P.b, sol) - P.r)   # P.r = 0
+        push!(
+            results,
+            [instance, n, outiter, "cqk without x0", nthreads, iter, flag, time, infeas]
+        )
+
         # CQK
         b = @benchmarkable cqk!($sol, $P, chunks=($chunks), x0=($x))
         time = estimatetime(b)
-        iter, flag = cqk!(sol, P, nchunks=nthreads, x0=(x))
+        iter, flag = cqk!(sol, P, chunks=(chunks), x0=(x))
         infeas = abs(dot(P.b, sol) - P.r)   # P.r = 0
         push!(
             results,
@@ -107,9 +122,9 @@ function svm_solve(
     # --------
     dualsol, spgiter, flag = spg(
         n,
-        x -> f(x, H, Z, y),
-        (g, x) -> g!(g, x, H, Z, y),
-        (p, z, x0) -> proj!(p, z, x0, chunks, P),
+        x -> svm_f(x, H, Z, y),
+        (g, x) -> svm_g!(g, x, H, Z, y),
+        (p, z, x0) -> svm_proj!(p, z, x0, chunks, P),
         l = P.l, u = P.u,
         callback = isnothing(results) ? nothing : b_callback,
         maxiters = 500,
@@ -186,7 +201,7 @@ function svm_tune(Z, w; k = 4)
     for disp = -0.5:0.5:1.5
         push!(γs, 10^(log(10, γ0) + disp))
     end
-    for disp = -1.0:0.5:1.0
+    for disp = -1.0:1.0:1.0
         push!(Cs, 10^(log(10, C0) + disp))
     end
 
@@ -267,6 +282,9 @@ end
 
 # Read a dataset
 function svm_readdataset(id)
+    if isempty(datasets)
+        return nothing, nothing
+    end
     d = datasets[datasets.id .== id,:]
     n = d.NumberOfInstances[1]
     m = d.NumberOfNumericFeatures[1]
@@ -322,35 +340,12 @@ function svm_merge_params()
     end
 end
 
-# Try to extract source of a dataset
-function svm_dataset_source(id)
-    source = ""
-    # Dataset description in Markdown
-    mdtext = OpenML.describe_dataset(id)
-    # Search for the paragraph containing the word "Source"
-    par = 0
-    for i in 1:length(mdtext)
-        if contains(string(mdtext.content[i]), "Source")
-            par = i
-            break
-        end
-    end
-    if par > 0
-        # Search within the paragraph
-        for i in 1:(length(mdtext.content[par].content)-2)
-            if contains(string(mdtext.content[par].content[i]), "Source")
-                if typeof(mdtext.content[par].content[i+2]) == Markdown.Link
-                    source = mdtext.content[par].content[i+2].text
-                end
-                break
-            end
-        end
-    end
-    return source
-end
-
 # Run tuning
 function svm_alltune()
+    if isempty(datasets)
+        return
+    end
+
     # Merge all parameter files to collect old, possibly unfinished tests
     svm_merge_params()
 
@@ -370,7 +365,8 @@ function svm_alltune()
             println("$(d.name): Already tuned. Skipping...")
             continue
         else
-            if isempty(svm_dataset_source(d.id))
+            # Skip randomly generated dataset
+            if contains(d.name, "seed")
                 continue
             end
             Z, w = svm_readdataset(d.id)
@@ -394,6 +390,10 @@ function svm_alltune()
 end
 
 function svm_alltests(cont)
+    if isempty(datasets)
+        return
+    end
+
     nthreads = Threads.nthreads()
 
     param = jld2_read("param", "svm_param.jld2")
@@ -421,12 +421,18 @@ function svm_alltests(cont)
     for id in keys(param)
         d = datasets[datasets.id .== id, :]
 
-        if !svm_executed(results, d.name[1], nthreads)
-            γ, C = param[id]
-            if (γ == 0.0) || (C == 0.0)
-                continue
-            end
+        if isempty(d)
+            println("Dataset id $(id) not found!")
+            continue
+        end
 
+        γ, C = param[id]
+
+        if (γ == 0.0) || (C == 0.0)
+            continue
+        end
+
+        if !svm_executed(results, d.name[1], nthreads)
             n = d.NumberOfInstances[1]
             m = d.NumberOfNumericFeatures[1]
             println("\nDataset: $(d.name[1]) (id $(id))   Instances: $(n)   Features: $(m)")

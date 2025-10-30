@@ -15,7 +15,7 @@ using SparseArrays
 using Distances
 using OpenML
 using Markdown
-using MatrixDepot
+using MAT
 
 include("spg.jl")
 
@@ -49,6 +49,10 @@ function get_parameters()
         arg_type = Bool
         default = false
         help = "execute SVM tuning?"
+        "--bp"
+        arg_type = Bool
+        default = true
+        help = "execute Basis Pursuit tests?"
     end
     return parse_args(s)
 end
@@ -56,8 +60,8 @@ end
 # SVM
 include("tests_svm.jl")
 
-# LASSO
-include("tests_lasso.jl")
+# Basis pursuit
+include("tests_basispursuit.jl")
 
 # Functions to convert data
 include("convert.jl")
@@ -411,6 +415,12 @@ function main(args)
         # SVM -> results_svm.jld2
         println("===================\nSVM\n===================")
         svm_alltests(opts["continue"])
+    end
+
+    if opts["bp"]
+        # Basis pursuit -> results_bp.jld2
+        println("===================\nBasis Pursuit\n===================")
+        bp_alltests(opts["continue"])
     end
 
     return 0
