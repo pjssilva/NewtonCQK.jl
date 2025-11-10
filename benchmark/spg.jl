@@ -71,7 +71,7 @@ function spg(n, f, g!, proj!;
         gsupn = norm(d, Inf)
 
         if verbose > 0
-            println("SPG iter: $(iter)    |proj g| = $(gsupn)")
+            println("SPG iter: $(iter)    |proj g| = $(gsupn)    f = $(fx)")
         end
 
         # Test whether convergence is achieved
@@ -95,6 +95,15 @@ function spg(n, f, g!, proj!;
         end
         d .-= x
 
+        # Callback
+        # To compute direction, we project x .- lambda * g starting at x
+        if !isnothing(callback)
+            if callback(x .- lambda * g, x, iter)
+                flag = :callback_stop
+                break
+            end
+        end
+
         # Line search
         fxmax = maximum(lastf)
         fx, lsflag = ls!(xnew, f, x, fx, fxmax, g, d, eta)
@@ -103,14 +112,6 @@ function spg(n, f, g!, proj!;
             flag = :too_small_steplength
             x .= xbest
             break
-        end
-
-        # Callback
-        if !isnothing(callback)
-            if callback(x, iter)
-                flag = :callback_stop
-                break
-            end
         end
 
         lastf[mod(iter + 1, m) + 1] = fx

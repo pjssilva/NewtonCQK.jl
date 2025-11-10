@@ -7,16 +7,26 @@ using Latexify
 using Statistics
 using Format
 using LaTeXStrings
-using OpenML
+# using OpenML
 
-# Instances names and sizes from tests_cqk.jl and tests_simplex.jl
-# We do not include these files here because to avoid redefine TESTS structure.
-# Also, we are freedom to select a subset of tests here.
-CQK_names = ["uncorr", "weakly corr", "corr"]
-CQK_sizes = [1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000]
+include("jld2_read.jl")
 
-simplex_names = ["Random 1", "Random 2", "Random 3"]
-simplex_sizes = [1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000]
+struct DATASET
+    id::Int64
+    name::String
+    features::Int64
+    instances::Int64
+    data::DataFrame
+end
+
+# Formats
+fmt_d = generate_formatter("%'d")
+fmt_lf = generate_formatter("%6.2lf")
+fmt_lf1 = generate_formatter("%5.1lf")
+fmt_e = generate_formatter("%8.2e")
+fmt_e0 = generate_formatter("%7.0e")
+fmt_etex(v) = replace(fmt_e(v), "e+" => "e\$+\$")
+fmt_etex0(v) = replace(fmt_e0(v), "e+" => "e\$+\$")
 
 # Algorithm legend labels
 alglabels = Dict(
@@ -37,8 +47,23 @@ alglabels = Dict(
     "P Condat (l1ball)"     => "Dai and Chen's algorithm",
     "l1ball (GPU, FP64)"    => "Specialized Algorithm 1 (GPU)",
     "l1ball (CPU, FP32)"    => "Specialized Algorithm 1 (dense)",
-    "l1ball (GPU, FP32)"    => "Specialized Algorithm 1 (GPU)"
+    "l1ball (GPU, FP32)"    => "Specialized Algorithm 1 (GPU)",
+    "l1ball (bp)"           => "Our algorithm",
+    "l1ball (bp) x0"        => "Our algorithm (using x0)"
 )
+
+#########################
+# RANDOM TESTS
+#########################
+
+# Instances names and sizes from tests_cqk.jl and tests_simplex.jl
+# We do not include these files here because to avoid redefine TESTS structure.
+# Also, we are freedom to select a subset of tests here.
+CQK_names = ["uncorr", "weakly corr", "corr"]
+CQK_sizes = [1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000]
+
+simplex_names = ["Random 1", "Random 2", "Random 3"]
+simplex_sizes = [1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000]
 
 # Instance legend labels
 instancelabels = Dict(
@@ -46,15 +71,6 @@ instancelabels = Dict(
     "weakly corr"   => "Weakly correlated",
     "corr"          => "Correlated"
 )
-
-# Formats
-fmt_d = generate_formatter("%'d")
-fmt_lf = generate_formatter("%6.2lf")
-fmt_lf1 = generate_formatter("%5.1lf")
-fmt_e = generate_formatter("%8.2e")
-fmt_e0 = generate_formatter("%7.0e")
-fmt_etex(v) = replace(fmt_e(v), "e+" => "e\$+\$")
-fmt_etex0(v) = replace(fmt_e0(v), "e+" => "e\$+\$")
 
 # read results in JLD2 file
 function read_results(filenames)
@@ -70,9 +86,7 @@ function read_results(filenames)
         @assert isfile(f) "$(f) file not found"
 
         # read JLD2 file
-        jld2file = jldopen(f, "r")
-        allres = read(jld2file, "results")
-        close(jld2file)
+        allres = jld2_read("results", f)
 
         # consolidates runs
         gres = groupby(allres, [:Instance, :n, :threads, :Algorithm])
@@ -83,14 +97,14 @@ function read_results(filenames)
         # solved problems count
         if isempty(res)
             res = combine(gres,
-                    [:iter; :time; :infeas; :st] .=> [mean; median; mean; x -> count(x .== :solved)];
-                    renamecols=false
-                    )
+                [:iter; :time; :infeas; :st] .=> [mean; median; mean; x -> count(x .== :solved)];
+                renamecols=false
+            )
         else
             res = vcat(res, combine(gres,
-                    [:iter; :time; :infeas; :st] .=> [mean; median; mean; x -> count(x .== :solved)];
-                    renamecols=false
-                    ))
+                [:iter; :time; :infeas; :st] .=> [mean; median; mean; x -> count(x .== :solved)];
+                renamecols=false
+            ))
         end
     end
 
@@ -369,48 +383,54 @@ function plot_speedup(
     println("File $(outfile) was generated.")
 end
 
-# Try to extract source of a dataset
-function svm_dataset_source(id)
-    source = ""
 
-    try
-        # Dataset description in Markdown
-        mdtext = OpenML.describe_dataset(id)
-        # Search for the paragraph containing the word "Source"
-        par = 0
-        for i in 1:length(mdtext)
-            if contains(string(mdtext.content[i]), "Source")
-                par = i
-                break
-            end
-        end
-        if par > 0
-            # Search within the paragraph
-            for i in 1:(length(mdtext.content[par].content)-2)
-                if contains(string(mdtext.content[par].content[i]), "Source")
-                    if typeof(mdtext.content[par].content[i+2]) == Markdown.Link
-                        source = mdtext.content[par].content[i+2].text
-                    end
-                    break
-                end
-            end
-        end
-    catch
-        source = ""
-    end
-    return source
-end
+#########################
+# SVM
+#########################
+
+# Try to extract source of a dataset
+# function svm_dataset_source(id)
+#     source = ""
+#
+#     try
+#         # Dataset description in Markdown
+#         mdtext = OpenML.describe_dataset(id)
+#         # Search for the paragraph containing the word "Source"
+#         par = 0
+#         for i in 1:length(mdtext)
+#             if contains(string(mdtext.content[i]), "Source")
+#                 par = i
+#                 break
+#             end
+#         end
+#         if par > 0
+#             # Search within the paragraph
+#             for i in 1:(length(mdtext.content[par].content)-2)
+#                 if contains(string(mdtext.content[par].content[i]), "Source")
+#                     if typeof(mdtext.content[par].content[i+2]) == Markdown.Link
+#                         source = mdtext.content[par].content[i+2].text
+#                     end
+#                     break
+#                 end
+#             end
+#         end
+#     catch
+#         source = ""
+#     end
+#     return source
+# end
 
 # LaTex table datasets
 function table_datasets(; abbrv=false)
-    if !isfile("svm_param.jld2")
+    param = jld2_read("param", "svm_param.jld2")
+    if isnothing(param)
         return
     end
-    jld2file = jldopen("svm_param.jld2", "r")
-    param = read(jld2file, "param")
-    close(jld2file)
 
-    datasets = OpenML.list_datasets(output_format = DataFrame)
+    datasets = jld2_read("datasets", "datasets.jld2")
+    if isnothing(datasets)
+        return
+    end
 
     if !isdir("output")
         mkdir("output")
@@ -422,23 +442,19 @@ function table_datasets(; abbrv=false)
     write(tex, "\\toprule\n")
     write(tex, "Dataset & instances & features & \$\\gamma\$ & \$C\$\\\\\n")
     write(tex, "\\midrule\n")
-    for id in keys(param)
-        γ, C = param[id]
+    for d in datasets
+        if !(d.id in keys(param))
+            continue
+        end
+
+        γ, C = param[d.id]
         if (C == 0.0) || (γ == 0.0)
             continue
         end
-        d = datasets[datasets.id .== id, :]
-        ni = d.NumberOfInstances[1]
-        nf = d.NumberOfFeatures[1] - 1
-        if abbrv
-            final = findfirst("_seed", d.name[1])
-            final = isnothing(final) ? length(d.name[1]) : final[1] - 1
-            dname = replace(d.name[1][1:final], "_" => "\\_")
-        else
-            dname = replace(d.name[1], "_" => "\\_")
-        end
 
-        write(tex, "\\texttt{$(dname)} & $(fmt_d(ni)) & $(fmt_d(nf)) & $(fmt_lf(γ)) & $(fmt_lf(C)) \\\\\n")
+        dname = replace(d.name[1], "_" => "\\_")
+
+        write(tex, "\\texttt{$(dname)} & $(fmt_d(d.instances)) & $(fmt_d(d.features)) & $(fmt_lf(γ)) & $(fmt_lf(C)) \\\\\n")
     end
     write(tex, "\\botrule\n\\end{tabular*}")
 
@@ -446,69 +462,148 @@ function table_datasets(; abbrv=false)
     println("File $(output) was generated.")
 end
 
+
+#########################
+# BASIS PURSUIT
+#########################
+
 function bp_plots(
-    instance; measure=:time, legpos=:best, output="", miniter=1, title="", relative=true
+    basealg,
+    algs,
+    instance;
+    measure=:time,
+    legpos=:best,
+    output="",
+    miniter=1,
+    title="",
+    nthreads=1,
+    rangesize=100,
+    blanksize=20,
+    xstep=0
 )
-    if !isfile("results_bp.jld2")
+    res = jld2_read("results", "results_bp.jld2")
+    if isnothing(res)
         return
     end
 
-    jld2file = jldopen("results_bp.jld2", "r")
-    res = read(jld2file, "results")
-    close(jld2file)
+    res = res[
+        (res.Instance .== instance) .&
+        (res.threads .== nthreads),
+    :]
 
-    res = res[(res.Instance .== instance) .& (res.outiter .>= miniter),:]
+    if isempty(res)
+        return
+    end
 
-    # base algorithm is the one that contains "without" in its name
-    algs = unique(res.Algorithm[.!contains.(res.Algorithm, "without")])
-    basealg = res[contains.(res.Algorithm, "without"),:Algorithm][1]
+    outfile = "output/bp_$(instance)_$(measure)_th$(nthreads)$(output).pdf"
+
+    relative = (measure == :time)
+    nonzeros = (measure == :nonzeros)
+
+    # base algorithm is the first one in alglist
+    basemeasures = Float64.(res[res.Algorithm .== basealg, measure])
+
+    # iters for plot
     iters = Int64.(sort(unique(res.outiter)))
+    miniter = min(miniter, length(iters))
+    iters = union(
+        1:min(rangesize,length(iters)),
+        max(1,length(iters)-rangesize+1):length(iters)
+    )
 
-    outfile = "output/bp_$(measure)$(output)_$(instance).pdf"
+    if xstep <= 0
+        xstep = max(1, ceil(Int64, length(iters)/15))
+    end
 
-    # base alg times
-    basemeasures = res[contains.(res.Algorithm, "without"), measure]
-
-    xstep = max(1, ceil(Int64, length(iters)/15))
+    if iters[end] > length(iters)
+        # iters are not consecutive, we insert a blank space between the two intervals
+        iterbreak = 1
+        while iters[iterbreak] == iterbreak
+            iterbreak += 1
+        end
+        # iters to be plotted
+        plotiters = union(
+            miniter:(iterbreak-1),
+            (iterbreak+blanksize):length(iters).+blanksize
+        )
+        # do not plot the graph in the blank space
+        novalues = (iterbreak-1):(iters[iterbreak]-1)
+        # positions of xsticks
+        xticks = union(
+            miniter:xstep:(iterbreak-1),
+            (iterbreak+blanksize):xstep:length(iters).+blanksize
+        )
+        # texts of xsticks (may not conincide with positions)
+        xtickstext = union(
+            miniter:xstep:(iterbreak-1),
+            iters[end-rangesize+1]:xstep:iters[end]
+        )
+    else
+        plotiters = iters[miniter:end]
+        novalues = Int64[]
+        xticks = miniter:xstep:length(iters)
+        xtickstext = xticks
+    end
 
     # initialize plot
     fig = plot(; title=title,
-        xlabel="iteration",
+        xlabel="SPG iteration",
         ylabel="relative speedup",
-        legend=legpos,
+        legend=nonzeros ? false : legpos,
         fontfamily="Computer Modern",
-        xticks=miniter:xstep:iters[end]
+        xticks=(xticks, xtickstext)
     )
+
+    basemeasures[novalues] .= NaN
+
+    baseplot = relative ? fill(1.0, length(basemeasures)) : basemeasures
+    baseplot[novalues] .= NaN
+
+    if nonzeros
+        n = res[res.Algorithm .== basealg, :n][1]
+        baseplot ./= n
+    end
 
     # base alg
     fig = plot!(
-        iters,
-        relative ? fill(1.0, length(iters)) : basemeasures;
-        label=basealg,
+        plotiters,
+        baseplot[iters[miniter:end]],
+        label = alglabels[basealg],
         markershape=:none,
         lw=1
     )
 
-    # algorithms, excludingthe base alg
-    for a in algs
-        measures = res[res.Algorithm .== a, measure]
+    if !nonzeros
+        # other algorithms, following the order in alglist
+        for a in algs
+            measures = Float64.(res[res.Algorithm .== a, measure])
+            if minimum(measures) < 0
+                continue
+            end
+            measures[novalues] .= NaN
 
-        if minimum(measures) < 0
-            continue
+            fig = plot!(
+                plotiters,
+                relative
+                    ?
+                    basemeasures[iters[miniter:end]]./measures[iters[miniter:end]]
+                    :
+                    measures[iters[miniter:end]];
+                label=alglabels[a],
+                markershape=:none,
+                lw=1
+            )
         end
-
-        fig = plot!(
-            iters,
-            relative ? measures./basemeasures : measures;
-            label=a,
-            markershape=:none,
-            lw=1
-        )
     end
 
     savefig(fig, outfile)
     println("File $(outfile) was generated.")
 end
+
+
+#########################
+# GENERATE OUTPUTS
+#########################
 
 function generate_all()
     files = ["results_cpu.jld2", "results_gpu.jld2"]
@@ -516,76 +611,102 @@ function generate_all()
     ###################
     # Speedup CQK
     ###################
-    base = "cqk (CPU, FP64)"
-    for n in CQK_sizes
-        plot_speedup(
-            CQK_names,
-            n,
-            base,
-            ["cqk (CPU, FP64)"];
-            title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}"),
-            plot_basealg=false,
-            filenames=files
-        )
-    end
+#     base = "cqk (CPU, FP64)"
+#     for n in CQK_sizes
+#         plot_speedup(
+#             CQK_names,
+#             n,
+#             base,
+#             ["cqk (CPU, FP64)"];
+#             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}"),
+#             plot_basealg=false,
+#             filenames=files
+#         )
+#     end
 
     ###################
     # Speedup Simplex
     ###################
-    base = "Condat C"
-    for n in simplex_sizes, p in simplex_names
-        ptext = replace(p," " => "\\ ")
-        plot_speedup(
-            [p],
-            n,
-            base,
-            ["simplex (CPU, FP64)", "sp simplex (CPU, FP64)", "P Condat (simplex)"];
-            title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
-            # include 1 thread, as the comparison is with Condat's C code
-            minthreads=1,
-            #algcuda="simplex (GPU, FP64)",
-            filenames=files
-        )
-    end
+#     base = "Condat C"
+#     for n in simplex_sizes, p in simplex_names
+#         ptext = replace(p," " => "\\ ")
+#         plot_speedup(
+#             [p],
+#             n,
+#             base,
+#             ["simplex (CPU, FP64)", "sp simplex (CPU, FP64)", "P Condat (simplex)"];
+#             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
+#             # include 1 thread, as the comparison is with Condat's C code
+#             minthreads=1,
+#             #algcuda="simplex (GPU, FP64)",
+#             filenames=files
+#         )
+#     end
 
     ###################
     # Tables CPU vs GPU
     ###################
-    table_cpu_gpu(
-        ["uncorr";"weakly corr";"corr"],
-        "cqk (CPU, FP32)",      # CPU algorithm
-        "cqk (GPU, FP32)",      # GPU algorithm
-        filenames=files,
-        output="_FP32",
-        minn = 10^4,
-        maxn = 10^8,
-        maxthreads = 64
-    )
-    table_cpu_gpu(
-        ["uncorr";"weakly corr";"corr"],
-        "cqk (CPU, FP64)",      # CPU algorithm
-        "cqk (GPU, FP64)",      # GPU algorithm
-        filenames=files,
-        output="_FP64",
-        minn = 10^4,
-        maxn = 10^8,
-        maxthreads = 64
-    )
+#     table_cpu_gpu(
+#         ["uncorr";"weakly corr";"corr"],
+#         "cqk (CPU, FP32)",      # CPU algorithm
+#         "cqk (GPU, FP32)",      # GPU algorithm
+#         filenames=files,
+#         output="_FP32",
+#         minn = 10^4,
+#         maxn = 10^8,
+#         maxthreads = 64
+#     )
+#     table_cpu_gpu(
+#         ["uncorr";"weakly corr";"corr"],
+#         "cqk (CPU, FP64)",      # CPU algorithm
+#         "cqk (GPU, FP64)",      # GPU algorithm
+#         filenames=files,
+#         output="_FP64",
+#         minn = 10^4,
+#         maxn = 10^8,
+#         maxthreads = 64
+#     )
 
     ###################
     # Performance profile
     ###################
-    pp(
-        ["simplex (CPU, FP64)"; "sp simplex (CPU, FP64)"; "Condat C"; "P Condat (simplex)"],
-        filenames=files,
-        output="_simplex",
-        maxthreads = 1
-    )
+#     pp(
+#         ["simplex (CPU, FP64)"; "sp simplex (CPU, FP64)"; "Condat C"; "P Condat (simplex)"],
+#         filenames=files,
+#         output="_simplex",
+#         maxthreads = 1
+#     )
 
     ###################
     # Datasets table
     ###################
     table_datasets(abbrv=true)
+
+    ###################
+    # Basis pursuit plots
+    ###################
+    for n in [11;13;20]
+        for t in [1;2;4;8;16;32;64;128]
+            for m in [:time; :iter; :nonzeros]
+                if m == :nonzeros
+                    title = "SC$(n), sparsity (%)"
+                elseif m == :time
+                    title = "SC$(n), CPU time ($(t) thread$(t > 1 ? "s" : ""))"
+                elseif m == :iter
+                    title = "SC$(n), projection iterations ($(t) thread$(t > 1 ? "s" : ""))"
+                end
+                bp_plots(
+                    "l1ball (bp)",
+                    ["l1ball (bp) x0"; "P Condat (l1ball)"],
+                    "SClog$(n).mat",
+                    miniter=3,
+                    title=title,
+                    nthreads=t,
+                    measure=m
+                )
+            end
+        end
+    end
 end
 
 # Run main if non-iteractive

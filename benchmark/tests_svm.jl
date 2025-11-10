@@ -1,23 +1,62 @@
 # Filter datasets for binary classification
-try
-    datasets = OpenML.list_datasets(
-        filter="number_classes/2/number_instances/50000..1000000/number_missing_values/0",
-        output_format = DataFrame
-    )
-catch
-    datasets = DataFrame()
-    println("Error while list datasets with OpenML. No SVM tests will be performed.")
-    println("This problem occurs probably due when try to access the server. Try again.")
+# try
+#     datasets = OpenML.list_datasets(
+#         filter="number_classes/2/number_instances/50000..1000000/number_missing_values/0",
+#         output_format = DataFrame
+#     )
+# catch
+#     datasets = DataFrame()
+#     println("Error while list datasets with OpenML. No SVM tests will be performed.")
+#     println("This problem occurs probably due when try to access the server. Try again.")
+# end
+
+struct DATASET
+    id::Int64
+    name::String
+    features::Int64
+    instances::Int64
+    data::DataFrame
 end
 
-function jld2_read(objectname, filename; test = true)
-    output = nothing
-    if isfile(filename) && test
-        jld2file = jldopen(filename, "r")
-        output = read(jld2file, objectname)
-        close(jld2file)
+function loadall(list; onlyshows=false, namecontains="")
+    datasets = jld2_read("datasets", "datasets.jld2")
+    if isnothing(datasets)
+        datasets = DATASET[]
     end
-    return output
+    for d in eachrow(list)
+        if contains(d.name, "seed")
+            continue
+        end
+        if !contains(d.name, namecontains)
+            continue
+        end
+        if (d.NumberOfSymbolicFeatures > 1) || (d.NumberOfNumericFeatures != d.NumberOfFeatures - 1)
+            continue
+        end
+        if onlyshows
+            println("Dataset id $(d.id)")
+            continue
+        end
+        alreadydownloaded = false
+        for s in datasets
+            if s.id == d.id
+                alreadydownloaded = true
+                break
+            end
+        end
+        if alreadydownloaded
+            continue
+        end
+        data = DataFrame()
+        try
+            data = DataFrame(OpenML.load(d.id))
+        catch
+            println("Fail to load dataset id $(d.id)")
+            continue
+        end
+        push!(datasets, DATASET(d.id, d.name, d.NumberOfNumericFeatures, d.NumberOfInstances, data))
+    end
+    jldsave("datasets.jld2"; datasets)
 end
 
 # Objective function

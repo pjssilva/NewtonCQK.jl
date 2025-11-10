@@ -35,7 +35,11 @@ end
 # Training data is considered scaled here!
 function bp_solve(
     instance, A, rhs, nthreads;
-    results = nothing, r = 1.0, verbose = 1
+    results = nothing,
+    r = 1.0,
+    x0 = Float64[],
+    brange = 1:100000000,
+    verbose = 1
 )
     @assert r > 0 throw(ArgumentError("r must be positive"))
     @assert !isempty(instance) throw(ArgumentError("instance must be provided"))
@@ -49,28 +53,45 @@ function bp_solve(
 
     # Store x - lambda * g computed by SPG, the vector that needs to be projected
     y = Vector{Float64}(undef, n)
+    g = similar(y)
 
-    # Callback function for benchmarking. We start at x0 = x.
-    sol = similar(y)
+    xs_to_proj = SparseVector{Float64, Int64}[]
+    x0s = SparseVector{Float64, Int64}[]
+
+    # Callback function for benchmarking
     chunks = initialize_chunks(n; nchunks=nthreads)
-    function b_callback(x, outiter)
+    function b_callback(x, x0, outiter)
+        if !(outiter in brange)
+            return false
+        end
+
         # sparse l1ball
         b = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks))
         time = estimatetime(b)
         sol, iter, flag = spl1ball_proj(y, r=(r), chunks=(chunks))
         infeas = max(0.0, sum(abs.(sol)) - r)
+        bp_g!(g, sol, A, rhs)
         push!(
             results,
-            [instance, n, outiter, "Our algorithm without x0", nthreads, iter, flag, time, infeas]
+            [
+                instance, n, outiter, "l1ball (bp)", nthreads,
+                iter, flag, time, infeas,
+                nnz(sol), bp_f(sol, A, rhs), norm(g, Inf)
+            ]
         )
 
-        b = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks), x0=($x))
+        b = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks), x0=($x0))
         time = estimatetime(b)
-        sol, iter, flag = spl1ball_proj(y, r=(r), chunks=(chunks), x0=(x))
+        sol, iter, flag = spl1ball_proj(y, r=(r), chunks=(chunks), x0=(x0))
         infeas = max(0.0, sum(abs.(sol)) - r)
+        bp_g!(g, sol, A, rhs)
         push!(
             results,
-            [instance, n, outiter, "Our algorithm 1 with x0", nthreads, iter, flag, time, infeas]
+            [
+                instance, n, outiter, "l1ball (bp) x0", nthreads,
+                iter, flag, time, infeas,
+                nnz(sol), bp_f(sol, A, rhs), norm(g, Inf)
+            ]
         )
 
         # Dai and Chen's algorithm
@@ -86,9 +107,14 @@ function bp_solve(
             sol = l1ball_condat_p(y, r, nthreads, 0.001)
         end
         infeas = max(0.0, sum(abs.(sol)) - r)
+        bp_g!(g, sol, A, rhs)
         push!(
             results,
-            [instance, n, outiter, "Dai and Chen's algorithm", nthreads, -1, :solved, time, infeas]
+            [
+                instance, n, outiter, "P Condat (l1ball)", nthreads,
+                -1, :not_specified, time, infeas,
+                nnz(sol), bp_f(sol, A, rhs), norm(g, Inf)
+            ]
         )
 
         return false
@@ -104,7 +130,7 @@ function bp_solve(
         (p, z, x0) -> bp_proj!(p, z, x0, chunks, y, r),
         l = -Inf, u = Inf,
         callback = isnothing(results) ? nothing : b_callback,
-        maxiters = 500,
+        maxiters = 50000, x0 = x0, eps = 1e-4,
         verbose = verbose
     )
 
@@ -146,12 +172,17 @@ function bp_alltests(cont)
                 "st" => []
                 "time" => Float64[]
                 "infeas" => Float64[]
+                "nonzeros" => Float64[]
+                "f" => Float64[]
+                "gsupn" => Float64[]
             ]
         )
     end
 
     for mat in matrices
         if !bp_executed(results, mat, nthreads)
+            println("Instance $(mat), threads = $(nthreads)")
+
             A = bp_read_matrix(joinpath(matrices_path, mat))
             if isempty(A)
                 println("Error while reading $(mat)")
@@ -160,19 +191,38 @@ function bp_alltests(cont)
             n = size(A,2)
             sparsex = zeros(n)
             nsparse = ceil(Int64, 0.05*n)
-            sparsex[rand(1:n, nsparse)] .= 1.0
+            sparsex[randperm(n)[1:nsparse]] .= 1.0
             rhs = A * sparsex
+            println("n = $(n), nsparse = $(nsparse)")
 
-            _, _, flag = bp_solve(
+            # count iterations, no benchmark
+            x, it, flag = bp_solve(
                 mat, A, rhs, nthreads;
-                results = results, r = nsparse/10
+                r = nsparse/4,
+                verbose = 0
             )
+
+            nonzeros = count(x .!= 0.0)
+            println("SPG exit: it = $(it)  flag = $(flag)  f = $(bp_f(x, A, rhs))  #nonzeros = $(nonzeros) ($(nonzeros/n*100))%")
 
             if flag != :solved
                 println("SPG fails.")
                 println('-'^98)
                 continue
             end
+
+            # benchmark range
+            nrange = 100
+            it_range = sort(union(1:min(it, nrange), max(1, it - nrange + 1):max(1, it)))
+            println("Benchmark iterations: Left range = 1:$(min(it, nrange)),  right range = $(max(1, it - nrange + 1)):$(max(1, it))")
+
+            # run again, benchmark iterations in "it_range"
+            _, _, flag = bp_solve(
+                mat, A, rhs, nthreads;
+                results = results,
+                r = nsparse/4, brange = it_range,
+                verbose = 0
+            )
 
             println('-'^98)
 

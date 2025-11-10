@@ -17,6 +17,9 @@ using OpenML
 using Markdown
 using MAT
 
+BLAS.set_num_threads(1)
+
+include("jld2_read.jl")
 include("spg.jl")
 
 # using ThreadPinning
@@ -318,25 +321,22 @@ function random_alltests(cont, nreps)
 
     # Output DataFrame / file
     output = "results.jld2"
-    results = DataFrame(
-        [
-            "Instance" => String[]
-            "n" => Int64[]
-            "id" => Int64[]
-            "Algorithm" => String[]
-            "threads" => Int64[]
-            "iter" => Int64[]
-            "st" => []
-            "time" => Float64[]
-            "infeas" => Float64[]
-            "extra_info" => Float64[]
-        ]
-    )
-
-    if cont && isfile(output)
-        jld2file = jldopen(output, "r")
-        results = read(jld2file, "results")
-        close(jld2file)
+    results = jld2_read("results", output, test = cont)
+    if isnothing(results)
+        results = DataFrame(
+            [
+                "Instance" => String[]
+                "n" => Int64[]
+                "id" => Int64[]
+                "Algorithm" => String[]
+                "threads" => Int64[]
+                "iter" => Int64[]
+                "st" => []
+                "time" => Float64[]
+                "infeas" => Float64[]
+                "extra_info" => Float64[]
+            ]
+        )
     end
 
     for test in TESTS
@@ -401,7 +401,7 @@ function main(args)
 
     if opts["random"]
         # Random tests (CQK, simplex, l1ball) -> results.jld2
-        println("===================\nRANDOM\n===================")
+        println("===================\nRandom\n===================")
         random_alltests(opts["continue"], opts["nreps"])
     end
 
