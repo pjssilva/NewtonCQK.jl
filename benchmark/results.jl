@@ -49,7 +49,7 @@ alglabels = Dict(
     "l1ball (CPU, FP32)"    => "Specialized Algorithm 1 (dense)",
     "l1ball (GPU, FP32)"    => "Specialized Algorithm 1 (GPU)",
     "l1ball (bp)"           => "Our algorithm",
-    "l1ball (bp) x0"        => "Our algorithm (using x0)"
+    "l1ball (bp) x0"        => "Our algorithm (warm start)"
 )
 
 #########################
@@ -548,7 +548,7 @@ function bp_plots(
     # initialize plot
     fig = plot(; title=title,
         xlabel="SPG iteration",
-        ylabel="relative speedup",
+        ylabel=nonzeros ? "sparsity (%)" : relative ? "relative speedup" : "",
         legend=nonzeros ? false : legpos,
         fontfamily="Computer Modern",
         xticks=(xticks, xtickstext)
@@ -685,11 +685,11 @@ function generate_all()
     ###################
     # Basis pursuit plots
     ###################
-    for n in [11;13;20]
+    for n in [11;13]
         for t in [1;2;4;8;16;32;64;128]
             for m in [:time; :iter; :nonzeros]
                 if m == :nonzeros
-                    title = "SC$(n), sparsity (%)"
+                    title = "SC$(n)"
                 elseif m == :time
                     title = "SC$(n), CPU time ($(t) thread$(t > 1 ? "s" : ""))"
                 elseif m == :iter
