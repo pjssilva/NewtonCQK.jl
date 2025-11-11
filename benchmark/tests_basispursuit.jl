@@ -16,7 +16,7 @@ end
 # Projection (solve particular l1-ball projection problem)
 function bp_proj!(p, z, x0, chunks, y, r)
     y .= z
-    _, flag = l1ball_proj!(p, y, r=(r), chunks=(chunks))
+    _, flag = l1ball_proj!(p, y, r=(r), nchunks=1)
     return (flag == :solved)
 end
 
