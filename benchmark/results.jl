@@ -476,40 +476,47 @@ function bp_plots(
     output="",
     miniter=1,
     title="",
-    nthreads=1,
+    threads=[1],
     rangesize=100,
     blanksize=20,
     xstep=0
 )
-    res = jld2_read("results", "results_bp.jld2")
-    if isnothing(res)
+    allres = jld2_read("results", "results_bp.jld2")
+    if isnothing(allres)
         return
     end
 
-    res = res[
-        (res.Instance .== instance) .&
-        (res.threads .== nthreads),
-    :]
+    allres = allres[allres.Instance .== instance,:]
+
+    # the base is the algorithm with "threads[1]" threads
+    res = allres[allres.threads .== threads[1],:]
 
     if isempty(res)
         return
     end
 
-    outfile = "output/bp_$(instance)_$(measure)_th$(nthreads)$(output).pdf"
+    if length(threads) == 1
+        outfile = "output/bp_$(instance)_$(measure)_th$(threads[1])$(output).pdf"
+    else
+        outfile = "output/bp_$(instance)_$(measure)$(output).pdf"
+    end
 
     relative = (measure == :time)
     nonzeros = (measure == :nonzeros)
 
-    # base algorithm is the first one in alglist
-    basemeasures = Float64.(res[res.Algorithm .== basealg, measure])
-
     # iters for plot
-    iters = Int64.(sort(unique(res.outiter)))
-    miniter = min(miniter, length(iters))
-    iters = union(
+    iters = Int64.(unique(res.outiter))
+
+    mask = union(
         1:min(rangesize,length(iters)),
         max(1,length(iters)-rangesize+1):length(iters)
     )
+
+    miniter = min(miniter, length(iters))
+    iters = iters[mask]
+
+    # base algorithm
+    basemeasures = Float64.(res[res.Algorithm .== basealg, measure])[mask]
 
     if xstep <= 0
         xstep = max(1, ceil(Int64, length(iters)/15))
@@ -527,7 +534,7 @@ function bp_plots(
             (iterbreak+blanksize):length(iters).+blanksize
         )
         # do not plot the graph in the blank space
-        novalues = (iterbreak-1):(iters[iterbreak]-1)
+        novalues = [iterbreak]
         # positions of xsticks
         xticks = union(
             miniter:xstep:(iterbreak-1),
@@ -539,7 +546,7 @@ function bp_plots(
             iters[end-rangesize+1]:xstep:iters[end]
         )
     else
-        plotiters = iters[miniter:end]
+        plotiters = miniter:length(iters)
         novalues = Int64[]
         xticks = miniter:xstep:length(iters)
         xtickstext = xticks
@@ -567,32 +574,61 @@ function bp_plots(
     # base alg
     fig = plot!(
         plotiters,
-        baseplot[iters[miniter:end]],
+        baseplot[miniter:end],
         label = alglabels[basealg],
         markershape=:none,
         lw=1
     )
 
     if !nonzeros
-        # other algorithms, following the order in alglist
-        for a in algs
-            measures = Float64.(res[res.Algorithm .== a, measure])
-            if minimum(measures) < 0
-                continue
-            end
-            measures[novalues] .= NaN
+        if length(threads) == 1
+            # specific number of threads, different algorithms
+            for a in algs
+                measures = Float64.(res[res.Algorithm .== a, measure])[mask]
+                if minimum(measures) < 0
+                    continue
+                end
+                measures[novalues] .= NaN
 
-            fig = plot!(
-                plotiters,
-                relative
-                    ?
-                    basemeasures[iters[miniter:end]]./measures[iters[miniter:end]]
-                    :
-                    measures[iters[miniter:end]];
-                label=alglabels[a],
-                markershape=:none,
-                lw=1
-            )
+                fig = plot!(
+                    plotiters,
+                    relative
+                        ?
+                        basemeasures[miniter:end]./measures[miniter:end]
+                        :
+                        measures[miniter:end];
+                    label=alglabels[a],
+                    markershape=:none,
+                    lw=1
+                )
+            end
+        else
+            # several threads, only base algorithm
+            for t in threads[2:end]
+                res = allres[(allres.Algorithm .== basealg) .& (allres.threads .== t),:]
+                if isempty(res)
+                    continue
+                end
+
+                # other algorithms following the order in "algs"
+                measures = Float64.(res[:, measure])[mask]
+                if minimum(measures) < 0
+                    continue
+                end
+                measures[novalues] .= NaN
+
+                fig = plot!(
+                    plotiters,
+                    relative
+                        ?
+                        basemeasures[miniter:end]./measures[miniter:end]
+                        :
+                        measures[miniter:end];
+                    label="$(alglabels[basealg]) ($(t) threads)",
+                    markershape=:none,
+                    lw=1
+                )
+            end
         end
     end
 
@@ -701,11 +737,20 @@ function generate_all()
                     "SClog$(n).mat",
                     miniter=3,
                     title=title,
-                    nthreads=t,
+                    threads=[t],
                     measure=m
                 )
             end
         end
+        bp_plots(
+            "l1ball (bp) x0",
+            ["l1ball (bp) x0"],
+            "SClog$(n).mat",
+            miniter=3,
+            title="SC$(n), CPU time",
+            threads=[1;2;4;8;16;32;64;128],
+            measure=:time
+        )
     end
 end
 
