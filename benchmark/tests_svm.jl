@@ -1,15 +1,3 @@
-# Filter datasets for binary classification
-# try
-#     datasets = OpenML.list_datasets(
-#         filter="number_classes/2/number_instances/50000..1000000/number_missing_values/0",
-#         output_format = DataFrame
-#     )
-# catch
-#     datasets = DataFrame()
-#     println("Error while list datasets with OpenML. No SVM tests will be performed.")
-#     println("This problem occurs probably due when try to access the server. Try again.")
-# end
-
 struct DATASET
     id::Int64
     name::String
@@ -18,7 +6,25 @@ struct DATASET
     data::DataFrame
 end
 
-function loadall(list; onlyshows=false, namecontains="")
+# Download selected datasets with OpenML
+# In case of failure, you can run again to continue
+function svm_load_datasets(; onlyshows=false, namecontains="", id=0)
+    list = []
+    try
+        if id == 0
+            list = OpenML.list_datasets(
+                filter="number_classes/2/number_instances/25000..35000/number_missing_values/0",
+                output_format = DataFrame
+            )
+        else
+            list = OpenML.list_datasets(filter="data_id/$(id)", output_format = DataFrame)
+        end
+    catch
+        println("Error while list datasets with OpenML.")
+        println("This problem occurs probably due when try to access the server. Try again.")
+        return
+    end
+
     datasets = jld2_read("datasets", "datasets.jld2")
     if isnothing(datasets)
         datasets = DATASET[]
@@ -34,7 +40,7 @@ function loadall(list; onlyshows=false, namecontains="")
             continue
         end
         if onlyshows
-            println("Dataset id $(d.id)")
+            println("Dataset $(d.name), id $(d.id)")
             continue
         end
         alreadydownloaded = false
@@ -51,7 +57,7 @@ function loadall(list; onlyshows=false, namecontains="")
         try
             data = DataFrame(OpenML.load(d.id))
         catch
-            println("Fail to load dataset id $(d.id)")
+            println("Fail to load dataset $(d.name), id $(d.id)")
             continue
         end
         push!(datasets, DATASET(d.id, d.name, d.NumberOfNumericFeatures, d.NumberOfInstances, data))
@@ -59,20 +65,78 @@ function loadall(list; onlyshows=false, namecontains="")
     jldsave("datasets.jld2"; datasets)
 end
 
+# Read a dataset from the list "datasets"
+# For nonbinary datasets, "class" must be provided
+function svm_readdataset(id, datasets; class = nothing)
+    if isempty(datasets)
+        return nothing, nothing
+    end
+    row = 1
+    while row <= length(datasets)
+        if datasets[row].id == id
+            break
+        end
+        row += 1
+    end
+    # Classes in data
+    c = unique(datasets[row].data[:,end])
+    if isnothing(class) && (length(c) != 2)
+        return nothing, nothing
+    end
+    n,m = size(datasets[row].data)
+    m -= 1
+    Z = Matrix{Float64}(undef, m, n)
+    Z .= Float64.(Matrix(datasets[row].data[:, 1:(end-1)])')
+    w = ones(n)
+    if isnothing(class)
+        # c[1]: 1, c[2]: -1
+        w[datasets[row].data[:,end] .== c[1]] .= -1
+    else
+        # class: -1, other: 1
+        w[string.(datasets[row].data[:,end]) .== string(class)] .= -1
+    end
+    return Z, w
+end
+
+# Given γ and data Z, creates the nxn sparse Hessian
+# discarding entries <= tol. Only the upper triangle is stored
+function sparseH(Z, γ; tol = 1e-20)
+    n = size(Z,2)
+    I = Int32[]
+    J = Int32[]
+    V = Float64[]
+    @inbounds for i in 1:(n-1)
+        for j in (i+1):n
+            # Gaussian kernel
+            @views aux = exp(-γ * sqeuclidean(Z[:,i], Z[:,j]))
+            if aux >= tol
+                push!(I, i)
+                push!(J, j)
+                push!(V, aux)
+            end
+        end
+    end
+    return sparse(I, J, V, n, n)
+end
+
 # Objective function
-function svm_f(x, H, Z, y)
-    return 0.5 * (x' * H(Z) * x) - sum(sign.(y) .* x)
+function svm_f(x, H, sgny)
+    return 0.5 * dot(x, Symmetric(H), x) - dot(sgny, x)
 end
 
 # Gradient of objective function
-function svm_g!(g, x, H, Z, y)
-    g .= (H(Z) * x) .- sign.(y)
+function svm_g!(g, x, H, sgny)
+    g .= Symmetric(H) * x .- sgny
 end
 
-# Projection (solve particular CQK)
-function svm_proj!(p, z, x0, chunks, P::CQKProblem)
+# Projection (solve particular CQK), without warm start
+# p is the solution
+# z is copied to P.a for later benchmarking. This is the vector x - lambda*g
+# returned by SPG. To maintain the same SPG sequence, we only the sequential
+# algorithm is applied
+function svm_proj!(p, z, P::CQKProblem)
     P.a .= z
-    _, flag = cqk!(p, P, chunks=(chunks))
+    _, flag = cqk!(p, P, nchunks=1, maxiters=500)
     return (flag == :solved)
 end
 
@@ -80,7 +144,12 @@ end
 # Training data is considered scaled here!
 function svm_solve(
     instance, Z, y, nthreads;
-    results = nothing, γ = 0.01, C = 1.0, verbose = 1
+    results = nothing,
+    γ = 0.01,
+    C = 1.0,
+    x0 = Float64[],
+    brange = 1:100_000_000,
+    verbose = 1
 )
     @assert γ > 0.0 throw(ArgumentError("γ must be positive"))
     @assert C > 0.0 throw(ArgumentError("C must be positive"))
@@ -88,6 +157,15 @@ function svm_solve(
     @assert size(Z,2) == length(y) throw(DimensionMismatch("Z and y have incompatible dimensions"))
 
     n = size(Z,2)
+
+    # Hessian
+    H = []
+    try
+        H = sparseH(Z, γ)
+    catch
+        @error "Error when computing H"
+        return [], 0, :H_error
+    end
 
     # CQK for subproblems
     # Note: P.b must be positive, so we change variables (P.l, P.u, P.a must be
@@ -107,66 +185,80 @@ function svm_solve(
     # The subproblem at iteration k is, after changing variables,
     # the problem above with H = I and s = xk - lambda*grad f
 
-    # Kernel
-    K(a,b) = exp(-γ * sqeuclidean(a,b))
-
-    # "Lazy" Hessian
-    H(Z) = @inbounds @views [ K(Z[:,i],Z[:,j]) for i=1:n, j=1:n ]
-
-    tmp = similar(P.a)
-
     # Callback function for benchmarking
     # P is relative to x, which must be updated before by proj!. For benchmarking,
     # we start at x0 = x.
     sol = similar(P.a)
     chunks = initialize_chunks(n; nchunks=nthreads)
-    function b_callback(x, outiter)
-        # CQK with no warm start
+    function b_callback(x, x0, outiter)
+        if !(outiter in brange)
+            return false
+        end
+
+        # CQK with without x0
         b = @benchmarkable cqk!($sol, $P, chunks=($chunks))
         time = estimatetime(b)
         iter, flag = cqk!(sol, P, chunks=(chunks))
         infeas = abs(dot(P.b, sol) - P.r)   # P.r = 0
+        nfixed = count((sol .== P.l) .| (sol .== P.u))
         push!(
             results,
-            [instance, n, outiter, "cqk without x0", nthreads, iter, flag, time, infeas]
+            [
+                instance, n, outiter, "cqk (SVM)", nthreads,
+                iter, flag, time, infeas,
+                # we dot not store f and |g| as in basis pursuit
+                nfixed, 0.0, 0.0
+            ]
         )
 
-        # CQK
+        # CQK with x0
         b = @benchmarkable cqk!($sol, $P, chunks=($chunks), x0=($x))
         time = estimatetime(b)
         iter, flag = cqk!(sol, P, chunks=(chunks), x0=(x))
         infeas = abs(dot(P.b, sol) - P.r)   # P.r = 0
+        nfixed = count((sol .== P.l) .| (sol .== P.u))
         push!(
             results,
-            [instance, n, outiter, "cqk", nthreads, iter, flag, time, infeas]
+            [
+                instance, n, outiter, "cqk (SVM) x0", nthreads,
+                iter, flag, time, infeas,
+                nfixed, 0.0, 0.0
+            ]
         )
 
-        # CMS_CQN
+        # CMS_CQN with x0
         if nthreads == 1
             b = @benchmarkable cms_cqn!($sol, $P, x0=($x))
             time = estimatetime(b)
             iter, flag = cms_cqn!(sol, P, x0=(x))
             infeas = abs(dot(P.b, sol) - P.r)   # P.r=0
+            nfixed = count((sol .== P.l) .| (sol .== P.u))
             push!(
                 results,
-                [instance, n, outiter, "cqn", 1, iter, flag, time, infeas]
+                [
+                    instance, n, outiter, "cqn (SVM)", nthreads,
+                    iter, flag, time, infeas,
+                    nfixed, 0.0, 0.0
+                ]
             )
         end
 
+        # return false => SPG continues
         return false
     end
 
     # --------
     # CALL SPG
     # --------
+    sgny = sign.(y)
     dualsol, spgiter, flag = spg(
         n,
-        x -> svm_f(x, H, Z, y),
-        (g, x) -> svm_g!(g, x, H, Z, y),
-        (p, z, x0) -> svm_proj!(p, z, x0, chunks, P),
+        x -> svm_f(x, H, sgny),
+        (g, x) -> svm_g!(g, x, H, sgny),
+        (p, z, x0) -> svm_proj!(p, z, P),
         l = P.l, u = P.u,
         callback = isnothing(results) ? nothing : b_callback,
-        maxiters = 500,
+        maxiters = 50000, x0 = x0, eps = 1e-4,
         verbose = verbose
     )
 
@@ -192,251 +284,14 @@ function svm_executed(results, instance, nthreads)
     return false
 end
 
-function z_score!(Z, itrain)
-    for f in 1:size(Z,1)
-        m = mean(Z[f,itrain])
-        std_dev = std(Z[f,itrain], mean=m)
-        Z[f,itrain] .-= m
-        Z[f,itrain] ./= std_dev
-    end
-end
-
-# Tuning SVM parameters by a simple grid search with k-fold cross validation
-function svm_tune(Z, w; k = 4)
-    bestγ = 0.0
-    bestC = 0.0
-
-    ninst = size(Z, 2)
-
-    # divide data in k balanced parts
-    len, inc = divrem(ninst, k)
-    itest = []
-    start = 1
-    @inbounds for i in 1:inc
-        push!(itest, start:(start + len))
-        start += len + 1
-    end
-    @inbounds for i in (inc + 1):k
-        push!(itest, start:(start + len - 1))
-        start += len
-    end
-
-    dualsol = Vector{Float64}(undef, ninst)
-    besterror = Inf
-
-    # Permutation to shuffle data (the same for all tests)
-    perm = randperm(ninst)
-
-    ZZ = similar(Z)
-    ww = similar(w)
-
-    # "log ranges" for γ and C
-    γ0 = 1.0 / size(Z, 1)
-    C0 = 1.0
-
-    γs = Float64[]
-    Cs = Float64[]
-
-    for disp = -0.5:0.5:1.5
-        push!(γs, 10^(log(10, γ0) + disp))
-    end
-    for disp = -1.0:1.0:1.0
-        push!(Cs, 10^(log(10, C0) + disp))
-    end
-
-    for γ in γs, C in Cs
-        # Kernel
-        K(a,b) = exp(-γ * sqeuclidean(a,b))
-
-        # "Lazy" Hessian
-        H(Z) = @inbounds @views [ K(Z[:,i],Z[:,j]) for i=1:size(Z,2), j=1:size(Z,2) ]
-
-        error_measure = 0.0
-
-        # cross validation
-        for t in itest
-            # Instances indices for training
-            itrain = setdiff(1:ninst, t)
-
-            # Shuffle data according perm
-            ZZ .= Z[:,perm]
-            ww .= w[perm]
-
-            # Scale features of training data (z_score)
-            z_score!(ZZ, itrain)
-
-            red_dualsol, _, flag = svm_solve(
-                "tuning", ZZ[:,itrain], ww[itrain], 1; γ = γ, C = C, verbose = 0
-            )
-
-            if flag == :solved
-                dualsol .= 0.0
-                dualsol[itrain] .= red_dualsol
-
-                # Compute b using all dual variables in (0,C)
-                b = 0.0
-                count_valid = 0
-                for j in itrain
-                    if (dualsol[j] > 1e-6) && (dualsol[j] < C - 1e-6)
-                        bj = 0.0
-                        for i in itrain
-                            bj -= dualsol[i] * ww[i] * K(ZZ[:,i], ZZ[:,j])
-                        end
-                        b += ww[j] - bj
-                        count_valid += 1
-                    end
-                end
-                b /= count_valid
-
-                for v in t
-                    s = 0.0
-                    for i in itrain
-                        s += dualsol[i] * ww[i] * K(ZZ[:,i], ZZ[:,v])
-                    end
-                    s += b
-                    if abs(ww[v] * s - 1) > 1e-4
-                        error_measure += abs(ww[v] * s - 1)
-                    end
-                end
-                if error_measure / length(itest) >= besterror
-                    break
-                end
-            else
-                error_measure = Inf
-                break
-            end
-        end
-
-        error_measure /= length(itest)
-
-        if error_measure < besterror
-            bestγ = γ
-            bestC = C
-            besterror = error_measure
-        end
-    end
-
-    return bestγ, bestC
-end
-
-# Read a dataset
-function svm_readdataset(id)
-    if isempty(datasets)
-        return nothing, nothing
-    end
-    d = datasets[datasets.id .== id,:]
-    n = d.NumberOfInstances[1]
-    m = d.NumberOfNumericFeatures[1]
-    if (d.NumberOfSymbolicFeatures[1] > 1) || (m != d.NumberOfFeatures[1] - 1)
-        println("$(d.name[1]): Invalid number of numeric features")
-        return nothing, nothing
-    end
-    data = []
-    try
-        data = DataFrame(OpenML.load(id))
-    catch
-        println("$(d.name[1]): Error while parsing")
-        return nothing, nothing
-    end
-    classes = unique(data[:,end])
-    if length(classes) != 2
-        return nothing, nothing
-    end
-    Z = Matrix{Float64}(undef, m, n)
-    Z .= Float64.(Matrix(data[:, 1:(end-1)])')
-    w = ones(n)
-    # classes[1]: 1, classes[2]: -1
-    w[data[:,end] .== classes[2]] .= -1
-    return Z, w
-end
-
-function svm_merge_params()
-    # Read main parameter file
-    param = jld2_read("param", "svm_param.jld2")
-    if isnothing(param)
-        param = Dict()
-    end
-
-    # Search for partial parameter files and merge their content with 'param'
-    files = readdir(".")
-    for f in files
-        if startswith(f, "svm_param_") && endswith(f, ".jld2")
-            parami = jld2_read("param", f)
-            param = merge(param, parami)
-        end
-    end
-    try
-        jldsave("svm_param.jld2"; param)
-
-        # Delete partial files, only executed if svm_param.jld2 was updated
-        for f in files
-            if startswith(f, "svm_param_") && endswith(f, ".jld2")
-                rm(f)
-            end
-        end
-    catch
-        println("Fail to save merged parameter file.")
-    end
-end
-
-# Run tuning
-function svm_alltune()
+# All SVM tests
+function svm_alltests(cont; max_inst = 0)
+    datasets = jld2_read("datasets", "datasets.jld2")
     if isempty(datasets)
         return
     end
-
-    # Merge all parameter files to collect old, possibly unfinished tests
-    svm_merge_params()
-
-    param_all = jld2_read("param", "svm_param.jld2")
-    if isnothing(param_all)
-        param_all = Dict()
-    end
-
-    # Tuning
-    Threads.@threads for d in eachrow(datasets)
-        param = jld2_read("param", "svm_param_$(Threads.threadid()).jld2")
-        if isnothing(param)
-            param = Dict()
-        end
-
-        if haskey(param_all, d.id)
-            println("$(d.name): Already tuned. Skipping...")
-            continue
-        else
-            # Skip randomly generated dataset
-            if contains(d.name, "seed")
-                continue
-            end
-            Z, w = svm_readdataset(d.id)
-            if isnothing(Z)
-                continue
-            end
-
-            # Tune parameters by a simple grid search
-            println("$(d.name): Tuning parameters...")
-            γ, C = svm_tune(Z, w)
-            println("\n$(d.name): done. Parameters: γ = $(γ), C = $(C)")
-
-            push!(param, d.id => [γ; C])
-
-            # Save parameters file
-            jldsave("svm_param_$(Threads.threadid()).jld2"; param)
-        end
-    end
-
-    svm_merge_params()
-end
-
-function svm_alltests(cont)
-    if isempty(datasets)
-        return
-    end
-
     nthreads = Threads.nthreads()
-
     param = jld2_read("param", "svm_param.jld2")
-
     output = "results_svm.jld2"
 
     # Results
@@ -453,41 +308,44 @@ function svm_alltests(cont)
                 "st" => []
                 "time" => Float64[]
                 "infeas" => Float64[]
+                "nonzeros" => Float64[]
+                "f" => Float64[]
+                "gsupn" => Float64[]
             ]
         )
     end
 
-    for id in keys(param)
-        d = datasets[datasets.id .== id, :]
+    for d in eachindex(datasets)
+        if !svm_executed(results, datasets[d].name, nthreads)
+            γ = 1.0 / datasets[d].features
+            C = 1.0
 
-        if isempty(d)
-            println("Dataset id $(id) not found!")
-            continue
-        end
+            n,m = size(datasets[d].data)
+            m -= 1
+            println("\nDataset: $(datasets[d].name) (id $(datasets[d].id))   Instances: $(n)   Features: $(m)")
+            println("Parameters: γ = $(γ), C = $(C)")
 
-        γ, C = param[id]
-
-        if (γ == 0.0) || (C == 0.0)
-            continue
-        end
-
-        if !svm_executed(results, d.name[1], nthreads)
-            n = d.NumberOfInstances[1]
-            m = d.NumberOfNumericFeatures[1]
-            println("\nDataset: $(d.name[1]) (id $(id))   Instances: $(n)   Features: $(m)")
-
-            Z, w = svm_readdataset(id)
+            Z, w = svm_readdataset(datasets[d].id, datasets)
             if isnothing(Z)
                 println('-'^98)
                 continue
             end
 
-            # Scale features
-            z_score!(Z, 1:size(Z,2))
+            # Select instances
+            if max_inst <= 0
+                # Select 60% of the instances randomly
+                max_inst = ceil(Int64, length(w) * 0.6)
+            end
+            mask_inst = rand(1:length(w), min(max_inst, length(w)))
+            println("Number of instances considered: $(length(mask_inst))")
 
-            _, _, flag = svm_solve(
-                d.name[1], Z, w, nthreads;
-                results = results, γ = γ, C = C
+            # Filter data
+            Z = Z[:,mask_inst]
+            w = w[mask_inst]
+
+            _, it, flag = svm_solve(
+                datasets[d].name, Z, w, nthreads;
+                γ = γ, C = C
             )
 
             if flag != :solved
@@ -495,6 +353,17 @@ function svm_alltests(cont)
                 println('-'^98)
                 continue
             end
+
+            # SPG iterations for benchmarking
+            nrange = 100
+            it_range = sort(union(1:min(it, nrange), max(1, it - nrange + 1):max(1, it)))
+            println("Benchmark iterations: Left range = 1:$(min(it, nrange)),  right range = $(max(1, it - nrange + 1)):$(max(1, it))")
+
+            # run again... perform benchmark for iterations in "it_range"
+            _, _, flag = svm_solve(
+                datasets[d].name, Z, w, nthreads;
+                results = results, γ = γ, C = C, verbose = 0
+            )
 
             println('-'^98)
 

@@ -14,8 +14,9 @@ using CUDA
 using SparseArrays
 using Distances
 using OpenML
-using Markdown
 using MAT
+
+BLAS_NTHREADS = BLAS.get_num_threads()
 
 BLAS.set_num_threads(1)
 
@@ -31,11 +32,11 @@ function get_parameters()
         "--cuda"
         arg_type = Int
         default = 0
-        help = "benchcmark a CUDA GPU (32 for 32bit only or 64 for 32 and 64 bits)"
+        help = "benchmark a CUDA GPU (32 for 32bit only or 64 for 32 and 64 bits)"
         "--nreps"
         arg_type = Int
         default = 1
-        help = "number of problems to solve"
+        help = "number of random problems to solve"
         "--continue"
         arg_type = Bool
         default = true
@@ -43,33 +44,33 @@ function get_parameters()
         "--random"
         arg_type = Bool
         default = true
-        help = "execute random tests?"
+        help = "random tests?"
         "--svm"
         arg_type = Bool
         default = true
-        help = "execute SVM tests?"
+        help = "SVM tests? (disabled when cuda > 0)"
         "--svm_tune"
         arg_type = Bool
         default = false
-        help = "execute SVM tuning?"
+        help = "SVM tuning? (disabled when cuda > 0)"
         "--bp"
         arg_type = Bool
         default = true
-        help = "execute Basis Pursuit tests?"
+        help = "basis pursuit tests? (disabled when cuda > 0)"
     end
     return parse_args(s)
 end
 
-# SVM
+############## SVM ##############
 include("tests_svm.jl")
 
-# Basis pursuit
+######### Basis pursuit #########
 include("tests_basispursuit.jl")
 
+############ Random #############
 # Functions to convert data
 include("convert.jl")
 
-##############################
 # Structure for instances
 struct INSTANCE
     name::String            # unique name
@@ -162,7 +163,6 @@ function reldiff_sol(P, cpualg, altalg)
     return norm(Vector(alt_sol) - cpu_sol) / norm(cpu_sol)
 end
 reldiff_sol(P, alg) = reldiff_sol(P, alg, alg)
-
 
 # Benchmark for Parallel Condat
 function b_Pcondat(P, serial_alg, parallel_alg, nthreads)
@@ -405,22 +405,29 @@ function main(args)
         random_alltests(opts["continue"], opts["nreps"])
     end
 
-    if opts["svm_tune"]
-        # SVM tune -> svm_param.jld2
-        println("===================\nSVM tuning\n===================")
-        svm_alltune()
-    end
+    # Only CPU
+    if opts["cuda"] == 0
+        if opts["svm_tune"]
+            # SVM tune -> svm_param.jld2
+            println("===================\nSVM tuning\n===================")
+            svm_alltune()
+        end
 
-    if opts["svm"]
-        # SVM -> results_svm.jld2
-        println("===================\nSVM\n===================")
-        svm_alltests(opts["continue"])
-    end
+        if opts["svm"]
+            # Download datasets
+            svm_load_datasets(id=42477)
+            svm_load_datasets(id=46455)
 
-    if opts["bp"]
-        # Basis pursuit -> results_bp.jld2
-        println("===================\nBasis Pursuit\n===================")
-        bp_alltests(opts["continue"])
+            # SVM -> results_svm.jld2
+            println("===================\nSVM\n===================")
+            svm_alltests(opts["continue"])
+        end
+
+        if opts["bp"]
+            # Basis pursuit -> results_bp.jld2
+            println("===================\nBasis pursuit\n===================")
+            bp_alltests(opts["continue"])
+        end
     end
 
     return 0

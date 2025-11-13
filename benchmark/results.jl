@@ -7,7 +7,7 @@ using Latexify
 using Statistics
 using Format
 using LaTeXStrings
-# using OpenML
+using OpenML
 
 include("jld2_read.jl")
 
@@ -72,7 +72,7 @@ instancelabels = Dict(
     "corr"          => "Correlated"
 )
 
-# read results in JLD2 file
+# read results in the JLD2 file
 function read_results(filenames)
     if isa(filenames, String)
         files = [filenames]
@@ -203,63 +203,63 @@ end
 
 # plot the figure of a performance profile of CPU times
 # IMPORTANT: unless time = Inf, it is considered that all algorithms solved all problems.
-function pp(
-    algs;
-    minn=0,
-    maxn=10^20,
-    minthreads=1,
-    maxthreads=500,
-    title="CPU time (ms)",
-    output="",
-    filenames="results.jld2"
-)
-    if !isdir("output")
-        mkdir("output")
-    end
-    output = "output/pp$(output).pdf"
-
-    res = read_results(filenames)
-
-    # Instances that at least one algorithm in algs was applied
-    inst = String[]
-    for p in unique(res.Instance)
-        for a in algs
-            Tinst = filter_results(res, instance=p, algorithm=a)
-            if !isempty(Tinst)
-                push!(inst, p)
-                break
-            end
-        end
-    end
-
-    # Filter results, excluding unsolved instances
-    res = filter_results(
-        res, minn=minn, maxn=maxn, minthreads=minthreads, maxthreads=maxthreads
-    )
-
-    T = Matrix{Float64}(undef, 0, length(algs))
-    for p in inst
-        T = [T; transpose(fill(Inf, length(algs)))]
-        for a in 1:length(algs)
-            Talg = filter_results(res, instance=p, algorithm=algs[a])
-            if !isempty(Talg)
-                T[end,a] = Talg.time[1]
-            end
-        end
-    end
-
-    fig = performance_profile(
-        PlotsBackend(),
-        Float64.(T),
-        [alglabels[algs[a]] for a = 1:length(algs)];
-        title=title,
-        logscale=true,
-        #fontfamily="Computer Modern",
-        lw=2#, color=:black, ls=:auto
-    )
-    savefig(fig, output)
-    println("File $(output) was generated.")
-end
+# function pp(
+#     algs;
+#     minn=0,
+#     maxn=10^20,
+#     minthreads=1,
+#     maxthreads=500,
+#     title="CPU time (ms)",
+#     output="",
+#     filenames="results.jld2"
+# )
+#     if !isdir("output")
+#         mkdir("output")
+#     end
+#     output = "output/pp$(output).pdf"
+#
+#     res = read_results(filenames)
+#
+#     # Instances that at least one algorithm in algs was applied
+#     inst = String[]
+#     for p in unique(res.Instance)
+#         for a in algs
+#             Tinst = filter_results(res, instance=p, algorithm=a)
+#             if !isempty(Tinst)
+#                 push!(inst, p)
+#                 break
+#             end
+#         end
+#     end
+#
+#     # Filter results, excluding unsolved instances
+#     res = filter_results(
+#         res, minn=minn, maxn=maxn, minthreads=minthreads, maxthreads=maxthreads
+#     )
+#
+#     T = Matrix{Float64}(undef, 0, length(algs))
+#     for p in inst
+#         T = [T; transpose(fill(Inf, length(algs)))]
+#         for a in 1:length(algs)
+#             Talg = filter_results(res, instance=p, algorithm=algs[a])
+#             if !isempty(Talg)
+#                 T[end,a] = Talg.time[1]
+#             end
+#         end
+#     end
+#
+#     fig = performance_profile(
+#         PlotsBackend(),
+#         Float64.(T),
+#         [alglabels[algs[a]] for a = 1:length(algs)];
+#         title=title,
+#         logscale=true,
+#         #fontfamily="Computer Modern",
+#         lw=2#, color=:black, ls=:auto
+#     )
+#     savefig(fig, output)
+#     println("File $(output) was generated.")
+# end
 
 # relative speedup
 # if 'inst' is a vector, plot speedups relative to the algorithm 'alg'
@@ -388,40 +388,8 @@ end
 # SVM
 #########################
 
-# Try to extract source of a dataset
-# function svm_dataset_source(id)
-#     source = ""
-#
-#     try
-#         # Dataset description in Markdown
-#         mdtext = OpenML.describe_dataset(id)
-#         # Search for the paragraph containing the word "Source"
-#         par = 0
-#         for i in 1:length(mdtext)
-#             if contains(string(mdtext.content[i]), "Source")
-#                 par = i
-#                 break
-#             end
-#         end
-#         if par > 0
-#             # Search within the paragraph
-#             for i in 1:(length(mdtext.content[par].content)-2)
-#                 if contains(string(mdtext.content[par].content[i]), "Source")
-#                     if typeof(mdtext.content[par].content[i+2]) == Markdown.Link
-#                         source = mdtext.content[par].content[i+2].text
-#                     end
-#                     break
-#                 end
-#             end
-#         end
-#     catch
-#         source = ""
-#     end
-#     return source
-# end
-
 # LaTex table datasets
-function table_datasets(; abbrv=false)
+function svm_table_datasets(; abbrv=false)
     param = jld2_read("param", "svm_param.jld2")
     if isnothing(param)
         return
@@ -575,7 +543,7 @@ function bp_plots(
     fig = plot!(
         plotiters,
         baseplot[miniter:end],
-        label = alglabels[basealg],
+        label = "$(alglabels[basealg])$(length(threads) > 1 ? " (1 thread" : ""))",
         markershape=:none,
         lw=1
     )

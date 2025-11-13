@@ -1,4 +1,4 @@
-# Filter datasets for binary classification
+# Matrices
 matrices_path = "SC_matrices"
 matrices = readdir(matrices_path)
 
@@ -13,13 +13,18 @@ function bp_g!(g, x, A, rhs)
     g .= A' * (A*x .- rhs)
 end
 
-# Projection (solve particular l1-ball projection problem)
-function bp_proj!(p, z, x0, chunks, y, r)
+# Project z onto the l1-ball with radius r, without warm start.
+# p is the solution
+# z is copied to y for later benchmarking. This is the vector x - lambda*g
+# returned by SPG. To maintain the same SPG sequence, we only the sequential
+# algorithm is applied
+function bp_proj!(p, z, y, r)
     y .= z
     _, flag = l1ball_proj!(p, y, r=(r), nchunks=1)
     return (flag == :solved)
 end
 
+# read matrix in Matlab form
 function bp_read_matrix(filename)
     A = []
     if isfile(filename)
@@ -30,15 +35,13 @@ function bp_read_matrix(filename)
     return A
 end
 
-
 # Apply SPG and optionally benchmark
-# Training data is considered scaled here!
 function bp_solve(
     instance, A, rhs, nthreads;
     results = nothing,
     r = 1.0,
     x0 = Float64[],
-    brange = 1:100000000,
+    brange = 1:100_000_000,
     verbose = 1
 )
     @assert r > 0 throw(ArgumentError("r must be positive"))
@@ -65,7 +68,7 @@ function bp_solve(
             return false
         end
 
-        # sparse l1ball
+        # sparse l1ball without x0
         b = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks))
         time = estimatetime(b)
         sol, iter, flag = spl1ball_proj(y, r=(r), chunks=(chunks))
@@ -80,6 +83,7 @@ function bp_solve(
             ]
         )
 
+        # sparse l1ball with x0
         b = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks), x0=($x0))
         time = estimatetime(b)
         sol, iter, flag = spl1ball_proj(y, r=(r), chunks=(chunks), x0=(x0))
@@ -117,6 +121,7 @@ function bp_solve(
             ]
         )
 
+        # return false => SPG continues
         return false
     end
 
@@ -127,7 +132,7 @@ function bp_solve(
         n,
         x -> bp_f(x, A, rhs),
         (g, x) -> bp_g!(g, x, A, rhs),
-        (p, z, x0) -> bp_proj!(p, z, x0, chunks, y, r),
+        (p, z, x0) -> bp_proj!(p, z, y, r),
         l = -Inf, u = Inf,
         callback = isnothing(results) ? nothing : b_callback,
         maxiters = 50000, x0 = x0, eps = 1e-4,
@@ -153,6 +158,7 @@ function bp_executed(results, instance, nthreads)
     return false
 end
 
+# All basis pursuit tests
 function bp_alltests(cont)
     nthreads = Threads.nthreads()
 
@@ -183,11 +189,14 @@ function bp_alltests(cont)
         if !bp_executed(results, mat, nthreads)
             println("Instance $(mat), threads = $(nthreads)")
 
+            # read matrix
             A = bp_read_matrix(joinpath(matrices_path, mat))
             if isempty(A)
                 println("Error while reading $(mat)")
                 continue
             end
+
+            # RHS
             n = size(A,2)
             sparsex = zeros(n)
             nsparse = ceil(Int64, 0.05*n)
@@ -211,12 +220,12 @@ function bp_alltests(cont)
                 continue
             end
 
-            # benchmark range
+            # SPG iterations for benchmarking
             nrange = 100
             it_range = sort(union(1:min(it, nrange), max(1, it - nrange + 1):max(1, it)))
             println("Benchmark iterations: Left range = 1:$(min(it, nrange)),  right range = $(max(1, it - nrange + 1)):$(max(1, it))")
 
-            # run again, benchmark iterations in "it_range"
+            # run again... perform benchmark for iterations in "it_range"
             _, _, flag = bp_solve(
                 mat, A, rhs, nthreads;
                 results = results,
