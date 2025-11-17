@@ -24,15 +24,17 @@ function bp_proj!(p, z, y, r)
     return (flag == :solved)
 end
 
-# read matrix in Matlab form
-function bp_read_matrix(filename)
+# read problem in Matlab form
+function bp_read_problem(filename)
     A = []
+    b = []
     if isfile(filename)
         file = matopen(filename)
         A = read(file, "A")
+        b = read(file, "b")
         close(file)
     end
-    return A
+    return A, b
 end
 
 # Apply SPG and optionally benchmark
@@ -57,9 +59,6 @@ function bp_solve(
     # Store x - lambda * g computed by SPG, the vector that needs to be projected
     y = Vector{Float64}(undef, n)
     g = similar(y)
-
-    xs_to_proj = SparseVector{Float64, Int64}[]
-    x0s = SparseVector{Float64, Int64}[]
 
     # Callback function for benchmarking
     chunks = initialize_chunks(n; nchunks=nthreads)
@@ -190,29 +189,25 @@ function bp_alltests(cont)
             println("Instance $(mat), threads = $(nthreads)")
 
             # read matrix
-            A = bp_read_matrix(joinpath(matrices_path, mat))
-            if isempty(A)
+            A, b = bp_read_problem(joinpath(matrices_path, mat))
+            if isempty(A) || isempty(b)
                 println("Error while reading $(mat)")
                 continue
             end
 
             # RHS
             n = size(A,2)
-            sparsex = zeros(n)
             nsparse = ceil(Int64, 0.05*n)
-            sparsex[randperm(n)[1:nsparse]] .= 1.0
-            rhs = A * sparsex
-            println("n = $(n), nsparse = $(nsparse)")
 
             # count iterations, no benchmark
             x, it, flag = bp_solve(
-                mat, A, rhs, nthreads;
+                mat, A, b, nthreads;
                 r = nsparse/4,
                 verbose = 0
             )
 
             nonzeros = count(x .!= 0.0)
-            println("SPG exit: it = $(it)  flag = $(flag)  f = $(bp_f(x, A, rhs))  #nonzeros = $(nonzeros) ($(nonzeros/n*100))%")
+            println("SPG exit: it = $(it)  flag = $(flag)  f = $(bp_f(x, A, b))  #nonzeros = $(nonzeros) ($(nonzeros/n*100))%")
 
             if flag != :solved
                 println("SPG fails.")
@@ -227,7 +222,7 @@ function bp_alltests(cont)
 
             # run again... perform benchmark for iterations in "it_range"
             _, _, flag = bp_solve(
-                mat, A, rhs, nthreads;
+                mat, A, b, nthreads;
                 results = results,
                 r = nsparse/4, brange = it_range,
                 verbose = 0

@@ -212,9 +212,9 @@ function svm_solve(
         )
 
         # CQK with x0
-        b = @benchmarkable cqk!($sol, $P, chunks=($chunks), x0=($x))
+        b = @benchmarkable cqk!($sol, $P, chunks=($chunks), x0=($x0))
         time = estimatetime(b)
-        iter, flag = cqk!(sol, P, chunks=(chunks), x0=(x))
+        iter, flag = cqk!(sol, P, chunks=(chunks), x0=(x0))
         infeas = abs(dot(P.b, sol) - P.r)   # P.r = 0
         nfixed = count((sol .== P.l) .| (sol .== P.u))
         push!(
@@ -228,9 +228,9 @@ function svm_solve(
 
         # CMS_CQN with x0
         if nthreads == 1
-            b = @benchmarkable cms_cqn!($sol, $P, x0=($x))
+            b = @benchmarkable cms_cqn!($sol, $P, x0=($x0))
             time = estimatetime(b)
-            iter, flag = cms_cqn!(sol, P, x0=(x))
+            iter, flag = cms_cqn!(sol, P, x0=(x0))
             infeas = abs(dot(P.b, sol) - P.r)   # P.r=0
             nfixed = count((sol .== P.l) .| (sol .== P.u))
             push!(
@@ -258,7 +258,7 @@ function svm_solve(
         (p, z, x0) -> svm_proj!(p, z, P),
         l = P.l, u = P.u,
         callback = isnothing(results) ? nothing : b_callback,
-        maxiters = 50000, x0 = x0, eps = 1e-4,
+        maxiters = 300, x0 = x0, eps = 1e-5,
         verbose = verbose
     )
 
@@ -345,7 +345,7 @@ function svm_alltests(cont; max_inst = 0)
 
             _, it, flag = svm_solve(
                 datasets[d].name, Z, w, nthreads;
-                γ = γ, C = C
+                γ = γ, C = C, verbose = 0
             )
 
             if flag != :solved
