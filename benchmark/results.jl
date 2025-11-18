@@ -523,7 +523,7 @@ function bp_plots(
     # initialize plot
     fig = plot(; title=title,
         xlabel="SPG iteration",
-        ylabel=nonzeros ? "sparsity (%)" : relative ? "relative speedup" : "",
+        ylabel=nonzeros ? "nonzeros (%)" : relative ? "relative speedup" : "",
         legend=nonzeros ? false : legpos,
         fontfamily="Computer Modern",
         xticks=(xticks, xtickstext)
@@ -543,7 +543,7 @@ function bp_plots(
     fig = plot!(
         plotiters,
         baseplot[miniter:end],
-        label = "$(alglabels[basealg])$(length(threads) > 1 ? " (1 thread" : ""))",
+        label = "$(length(threads) > 1 ? "1 thread" : "$(alglabels[basealg])")",
         markershape=:none,
         lw=1
     )
@@ -592,7 +592,7 @@ function bp_plots(
                         basemeasures[miniter:end]./measures[miniter:end]
                         :
                         measures[miniter:end];
-                    label="$(alglabels[basealg]) ($(t) threads)",
+                    label="$(t) threads",
                     markershape=:none,
                     lw=1
                 )
@@ -682,14 +682,9 @@ function generate_all()
 #     )
 
     ###################
-    # Datasets table
-    ###################
-    table_datasets(abbrv=true)
-
-    ###################
     # Basis pursuit plots
     ###################
-    for n in [11;13]
+    for n in [1;11]
         for t in [1;2;4;8;16;32;64;128]
             for m in [:time; :iter; :nonzeros]
                 if m == :nonzeros
@@ -706,7 +701,8 @@ function generate_all()
                     miniter=3,
                     title=title,
                     threads=[t],
-                    measure=m
+                    measure=m,
+                    legpos=:topright
                 )
             end
         end
@@ -715,7 +711,7 @@ function generate_all()
             ["l1ball (bp) x0"],
             "SClog$(n).mat",
             miniter=3,
-            title="SC$(n), CPU time",
+            title="Our algorithm on SC$(n), CPU time",
             threads=[1;2;4;8;16;32;64;128],
             measure=:time
         )

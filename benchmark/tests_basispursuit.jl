@@ -3,14 +3,14 @@ matrices_path = "SC_matrices"
 matrices = readdir(matrices_path)
 
 # Objective function
-function bp_f(x, A, rhs)
-    Axrhs = @views A*x .- rhs
-    return 0.5 * dot(Axrhs, Axrhs)
+function bp_f(x, A, b)
+    Axb = @views A*x .- b
+    return 0.5 * dot(Axb, Axb)
 end
 
 # Gradient of objective function
-function bp_g!(g, x, A, rhs)
-    g .= A' * (A*x .- rhs)
+function bp_g!(g, x, A, b)
+    g .= A' * (A*x .- b)
 end
 
 # Project z onto the l1-ball with radius r, without warm start.
@@ -31,7 +31,7 @@ function bp_read_problem(filename)
     if isfile(filename)
         file = matopen(filename)
         A = read(file, "A")
-        b = read(file, "b")
+        b = read(file, "b")[:]
         close(file)
     end
     return A, b
@@ -39,7 +39,7 @@ end
 
 # Apply SPG and optionally benchmark
 function bp_solve(
-    instance, A, rhs, nthreads;
+    instance, A, b, nthreads;
     results = nothing,
     r = 1.0,
     x0 = Float64[],
@@ -48,7 +48,7 @@ function bp_solve(
 )
     @assert r > 0 throw(ArgumentError("r must be positive"))
     @assert !isempty(instance) throw(ArgumentError("instance must be provided"))
-    @assert size(A,1) == length(rhs) throw(DimensionMismatch("A and b have incompatible dimensions"))
+    @assert size(A,1) == length(b) throw(DimensionMismatch("A and b have incompatible dimensions"))
 
     n = size(A,2)
 
@@ -68,55 +68,55 @@ function bp_solve(
         end
 
         # sparse l1ball without x0
-        b = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks))
-        time = estimatetime(b)
+        bm = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks))
+        time = estimatetime(bm)
         sol, iter, flag = spl1ball_proj(y, r=(r), chunks=(chunks))
         infeas = max(0.0, sum(abs.(sol)) - r)
-        bp_g!(g, sol, A, rhs)
+        bp_g!(g, sol, A, b)
         push!(
             results,
             [
                 instance, n, outiter, "l1ball (bp)", nthreads,
                 iter, flag, time, infeas,
-                nnz(sol), bp_f(sol, A, rhs), norm(g, Inf)
+                nnz(sol), bp_f(sol, A, b), norm(g, Inf)
             ]
         )
 
         # sparse l1ball with x0
-        b = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks), x0=($x0))
-        time = estimatetime(b)
+        bm = @benchmarkable spl1ball_proj($y, r=($r), chunks=($chunks), x0=($x0))
+        time = estimatetime(bm)
         sol, iter, flag = spl1ball_proj(y, r=(r), chunks=(chunks), x0=(x0))
         infeas = max(0.0, sum(abs.(sol)) - r)
-        bp_g!(g, sol, A, rhs)
+        bp_g!(g, sol, A, b)
         push!(
             results,
             [
                 instance, n, outiter, "l1ball (bp) x0", nthreads,
                 iter, flag, time, infeas,
-                nnz(sol), bp_f(sol, A, rhs), norm(g, Inf)
+                nnz(sol), bp_f(sol, A, b), norm(g, Inf)
             ]
         )
 
         # Dai and Chen's algorithm
         if nthreads == 1
-            b = @benchmarkable l1ball_condat_s($y, $r)
+            bm = @benchmarkable l1ball_condat_s($y, $r)
         else
-            b = @benchmarkable l1ball_condat_p($y, $r, $nthreads, 0.001)
+            bm = @benchmarkable l1ball_condat_p($y, $r, $nthreads, 0.001)
         end
-        time = estimatetime(b)
+        time = estimatetime(bm)
         if nthreads == 1
             sol = l1ball_condat_s(y, r)
         else
             sol = l1ball_condat_p(y, r, nthreads, 0.001)
         end
         infeas = max(0.0, sum(abs.(sol)) - r)
-        bp_g!(g, sol, A, rhs)
+        bp_g!(g, sol, A, b)
         push!(
             results,
             [
                 instance, n, outiter, "P Condat (l1ball)", nthreads,
                 -1, :not_specified, time, infeas,
-                nnz(sol), bp_f(sol, A, rhs), norm(g, Inf)
+                nnz(sol), bp_f(sol, A, b), norm(g, Inf)
             ]
         )
 
@@ -129,12 +129,12 @@ function bp_solve(
     # --------
     spgsol, spgiter, flag = spg(
         n,
-        x -> bp_f(x, A, rhs),
-        (g, x) -> bp_g!(g, x, A, rhs),
+        x -> bp_f(x, A, b),
+        (g, x) -> bp_g!(g, x, A, b),
         (p, z, x0) -> bp_proj!(p, z, y, r),
         l = -Inf, u = Inf,
         callback = isnothing(results) ? nothing : b_callback,
-        maxiters = 50000, x0 = x0, eps = 1e-4,
+        maxiters = 5000, x0 = x0, eps = 1e-3,
         verbose = verbose
     )
 
@@ -188,6 +188,8 @@ function bp_alltests(cont)
         if !bp_executed(results, mat, nthreads)
             println("Instance $(mat), threads = $(nthreads)")
 
+            BLAS.set_num_threads(BLAS_NTHREADS)
+
             # read matrix
             A, b = bp_read_problem(joinpath(matrices_path, mat))
             if isempty(A) || isempty(b)
@@ -195,25 +197,31 @@ function bp_alltests(cont)
                 continue
             end
 
-            # RHS
-            n = size(A,2)
-            nsparse = ceil(Int64, 0.05*n)
+            if mat == "SClog11.mat"
+                r = 35
+            elseif mat == "SClog1.mat"
+                r = 6700
+            else
+                r = size(A,2)/10
+            end
 
             # count iterations, no benchmark
             x, it, flag = bp_solve(
                 mat, A, b, nthreads;
-                r = nsparse/4,
+                r = r,
                 verbose = 0
             )
 
             nonzeros = count(x .!= 0.0)
-            println("SPG exit: it = $(it)  flag = $(flag)  f = $(bp_f(x, A, b))  #nonzeros = $(nonzeros) ($(nonzeros/n*100))%")
+            println("SPG exit: it = $(it)  flag = $(flag)  f = $(bp_f(x, A, b))  #nonzeros = $(nonzeros) ($(100*nonzeros/size(A,2))%)")
 
             if flag != :solved
                 println("SPG fails.")
                 println('-'^98)
                 continue
             end
+
+            BLAS.set_num_threads(1)
 
             # SPG iterations for benchmarking
             nrange = 100
@@ -224,7 +232,7 @@ function bp_alltests(cont)
             _, _, flag = bp_solve(
                 mat, A, b, nthreads;
                 results = results,
-                r = nsparse/4, brange = it_range,
+                r = r, brange = it_range,
                 verbose = 0
             )
 
