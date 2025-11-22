@@ -248,7 +248,7 @@ end
 function alltests(cont, nreps)
     nthreads = Threads.nthreads()
 
-    @show output = joinpath(projectpath, "results", "results_random.jld2")
+    output = joinpath(projectpath, "results", "results_random.jld2")
 
     results = jld2_read("results", output, test = cont)
     if isnothing(results)
