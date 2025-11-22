@@ -1,27 +1,9 @@
-using NewtonCQK
+include("../common/common.jl")
 
-using Printf
 using Random: Random, randperm
 Random.seed!(0)
-using LinearAlgebra
-using BenchmarkTools
-using ArgParse
-using OhMyThreads: OhMyThreads
-using DataFrames
 using Distributions
-using JLD2
 using CUDA
-using SparseArrays
-using Distances
-using OpenML
-using MAT
-
-BLAS_NTHREADS = BLAS.get_num_threads()
-
-BLAS.set_num_threads(1)
-
-include("jld2_read.jl")
-include("spg.jl")
 
 # using ThreadPinning
 # pinthreads(:cores)
@@ -41,33 +23,13 @@ function get_parameters()
         arg_type = Bool
         default = true
         help = "continue previous tests?"
-        "--random"
-        arg_type = Bool
-        default = true
-        help = "random tests?"
-        "--svm"
-        arg_type = Bool
-        default = true
-        help = "SVM tests? (disabled when cuda > 0)"
-        "--svm_tune"
-        arg_type = Bool
-        default = false
-        help = "SVM tuning? (disabled when cuda > 0)"
-        "--bp"
-        arg_type = Bool
-        default = true
-        help = "basis pursuit tests? (disabled when cuda > 0)"
     end
     return parse_args(s)
 end
 
-############## SVM ##############
-include("tests_svm.jl")
+BLAS_NTHREADS = BLAS.get_num_threads()
+BLAS.set_num_threads(1)
 
-######### Basis pursuit #########
-include("tests_basispursuit.jl")
-
-############ Random #############
 # Functions to convert data
 include("convert.jl")
 
@@ -117,43 +79,10 @@ TESTS = TEST[]
 push!(TESTS, TEST("CQK", CQK_INSTANCES, CQK_METHODS))
 push!(TESTS, TEST("Simplex", SIMPLEX_INSTANCES, SIMPLEX_METHODS))
 push!(TESTS, TEST("l1 ball", SIMPLEX_INSTANCES, l1BALL_METHODS))
-##############################
-
-include(joinpath("third_party", "condat", "condat_interface.jl"))
-include(
-    joinpath(
-        "third_party",
-        "Parallel-Simplex-Projection",
-        "src",
-        "simplex_and_l1ball",
-        "simplex_wrap.jl"
-    )
-)
-include(
-    joinpath(
-        "third_party",
-        "Parallel-Simplex-Projection",
-        "src",
-        "simplex_and_l1ball",
-        "l1ball_wrap.jl"
-    )
-)
-include(joinpath("third_party", "quadratic_knapsack_source", "cqn_interface.jl"))
 
 ############################
 # Benchmark
 ############################
-
-# CPU time
-function estimatetime(b)
-    b.params.gctrial = true
-    b.params.gcsample = false
-    b.params.evals = 1
-    b.params.samples = 10000
-    b.params.seconds = 2.0
-    samples = run(b)
-    return minimum(samples.times)
-end
 
 # Relative difference between FP64 and alternative solutions
 function reldiff_sol(P, cpualg, altalg)
@@ -316,11 +245,11 @@ function executed(results, p, id, m, nthreads)
 end
 
 # Main function
-function random_alltests(cont, nreps)
+function alltests(cont, nreps)
     nthreads = Threads.nthreads()
 
-    # Output DataFrame / file
-    output = "results.jld2"
+    @show output = joinpath(projectpath, "results", "results_random.jld2")
+
     results = jld2_read("results", output, test = cont)
     if isnothing(results)
         results = DataFrame(
@@ -399,36 +328,8 @@ function main(args)
     # Get command line parameters
     opts = get_parameters()
 
-    if opts["random"]
-        # Random tests (CQK, simplex, l1ball) -> results.jld2
-        println("===================\nRandom\n===================")
-        random_alltests(opts["continue"], opts["nreps"])
-    end
-
-    # Only CPU
-    if opts["cuda"] == 0
-        if opts["svm_tune"]
-            # SVM tune -> svm_param.jld2
-            println("===================\nSVM tuning\n===================")
-            svm_alltune()
-        end
-
-        if opts["svm"]
-            # Download datasets
-            svm_load_datasets(id=42477)
-            svm_load_datasets(id=46455)
-
-            # SVM -> results_svm.jld2
-            println("===================\nSVM\n===================")
-            svm_alltests(opts["continue"])
-        end
-
-        if opts["bp"]
-            # Basis pursuit -> results_bp.jld2
-            println("===================\nBasis pursuit\n===================")
-            bp_alltests(opts["continue"])
-        end
-    end
+    println("===================\nRandom\n===================")
+    alltests(opts["continue"], opts["nreps"])
 
     return 0
 end

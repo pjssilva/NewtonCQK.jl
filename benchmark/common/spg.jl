@@ -1,5 +1,3 @@
-using LinearAlgebra
-
 # SPG main function
 # n: number of variables
 # f: objective function -- f(x)

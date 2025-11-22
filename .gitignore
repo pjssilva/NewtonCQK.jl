@@ -1,3 +1,5 @@
 *Manifest*.toml
 *.o
 *.so
+*.jld2
+benchmark/results/output

@@ -1,22 +1,19 @@
 using DataFrames
 using JLD2
 using Plots
-using BenchmarkProfiles
 using Printf
 using Latexify
 using Statistics
 using Format
 using LaTeXStrings
-using OpenML
 
-include("jld2_read.jl")
+include("../common/jld2_read.jl")
+include("../svm/dataset.jl")
 
-struct DATASET
-    id::Int64
-    name::String
-    features::Int64
-    instances::Int64
-    data::DataFrame
+output_path = joinpath(projectpath, "results", "output")
+
+if !isdir(output_path)
+    mkdir(output_path)
 end
 
 # Formats
@@ -135,14 +132,11 @@ function table_cpu_gpu(
     maxn = Inf,
     maxthreads = 500,
     output="",          # additional identifier for output files
-    filenames="results.jld2"
+    filenames=joipath(projectpath, "results", "results.jld2")
 )
     @assert length(cpualg) == length(gpualg) "Lists of CPU and GPU algorithms must have the same size"
 
-    if !isdir("output")
-        mkdir("output")
-    end
-    outfile = "output/table$(output).tex"
+    outfile = joinpath(output_path, "table$(output).tex")
 
     res = read_results(filenames)
     res_tmp = filter_results(res; instance=inst[1])
@@ -211,12 +205,9 @@ end
 #     maxthreads=500,
 #     title="CPU time (ms)",
 #     output="",
-#     filenames="results.jld2"
+#     filenames=joipath(projectpath, "results", "results.jld2")
 # )
-#     if !isdir("output")
-#         mkdir("output")
-#     end
-#     output = "output/pp$(output).pdf"
+#     output = "$(output_path)/pp$(output).pdf"
 #
 #     res = read_results(filenames)
 #
@@ -275,7 +266,7 @@ function plot_speedup(
     plot_basealg=true,
     output="",          # additional identifier for output files
     algcuda="",
-    filenames="results.jld2"
+    filenames=joipath(projectpath, "results", "results_random.jld2")
 )
     @assert !isempty(inst) "inst must be non empty"
     @assert n > 0 "n must be > 0"
@@ -284,13 +275,10 @@ function plot_speedup(
     @assert (length(alg) == 1) || (length(inst) == 1) "alg or inst must be length = 1"
     @assert (length(alg) > 1) || (length(inst) > 1) "alg or inst must be length > 1"
 
-    if !isdir("output")
-        mkdir("output")
-    end
     if length(alg) > 1
-        outfile = "output/speedup$(output)_$(replace(inst[1], " " => "_"))_$(n).pdf"
+        outfile = joinpath(output_path, "speedup$(output)_$(replace(inst[1], " " => "_"))_$(n).pdf")
     else
-        outfile = "output/speedup$(output)_$(replace(alg[1], " " => "_"))_$(n).pdf"
+        outfile = joinpath(output_path, "speedup$(output)_$(replace(alg[1], " " => "_"))_$(n).pdf")
     end
     res = read_results(filenames)
 
@@ -385,53 +373,6 @@ end
 
 
 #########################
-# SVM
-#########################
-
-# LaTex table datasets
-function svm_table_datasets(; abbrv=false)
-    param = jld2_read("param", "svm_param.jld2")
-    if isnothing(param)
-        return
-    end
-
-    datasets = jld2_read("datasets", "datasets.jld2")
-    if isnothing(datasets)
-        return
-    end
-
-    if !isdir("output")
-        mkdir("output")
-    end
-    output = "output/table_datasets.tex"
-
-    tex = open(output, "w")
-    write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}lrrrr@{\\extracolsep\\fill}}\n")
-    write(tex, "\\toprule\n")
-    write(tex, "Dataset & instances & features & \$\\gamma\$ & \$C\$\\\\\n")
-    write(tex, "\\midrule\n")
-    for d in datasets
-        if !(d.id in keys(param))
-            continue
-        end
-
-        γ, C = param[d.id]
-        if (C == 0.0) || (γ == 0.0)
-            continue
-        end
-
-        dname = replace(d.name[1], "_" => "\\_")
-
-        write(tex, "\\texttt{$(dname)} & $(fmt_d(d.instances)) & $(fmt_d(d.features)) & $(fmt_lf(γ)) & $(fmt_lf(C)) \\\\\n")
-    end
-    write(tex, "\\botrule\n\\end{tabular*}")
-
-    close(tex)
-    println("File $(output) was generated.")
-end
-
-
-#########################
 # BASIS PURSUIT
 #########################
 
@@ -447,9 +388,10 @@ function bp_plots(
     threads=[1],
     rangesize=100,
     blanksize=20,
-    xstep=0
+    xstep=0,
+    filename=joipath(projectpath, "results", "results_basis_pursuit.jld2")
 )
-    allres = jld2_read("results", "results_bp.jld2")
+    allres = jld2_read("results", filename)
     if isnothing(allres)
         return
     end
@@ -464,9 +406,9 @@ function bp_plots(
     end
 
     if length(threads) == 1
-        outfile = "output/bp_$(instance)_$(measure)_th$(threads[1])$(output).pdf"
+        outfile = joinpath(output_path, "bp_$(instance)_$(measure)_th$(threads[1])$(output).pdf")
     else
-        outfile = "output/bp_$(instance)_$(measure)$(output).pdf"
+        outfile = joinpath(output_path, "bp_$(instance)_$(measure)$(output).pdf")
     end
 
     relative = (measure == :time)
@@ -610,7 +552,6 @@ end
 #########################
 
 function generate_all()
-    files = ["results_cpu.jld2", "results_gpu.jld2"]
 
     ###################
     # Speedup CQK
@@ -623,8 +564,7 @@ function generate_all()
 #             base,
 #             ["cqk (CPU, FP64)"];
 #             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}"),
-#             plot_basealg=false,
-#             filenames=files
+#             plot_basealg=false
 #         )
 #     end
 
@@ -642,8 +582,7 @@ function generate_all()
 #             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
 #             # include 1 thread, as the comparison is with Condat's C code
 #             minthreads=1,
-#             #algcuda="simplex (GPU, FP64)",
-#             filenames=files
+#             #algcuda="simplex (GPU, FP64)"
 #         )
 #     end
 
@@ -654,7 +593,6 @@ function generate_all()
 #         ["uncorr";"weakly corr";"corr"],
 #         "cqk (CPU, FP32)",      # CPU algorithm
 #         "cqk (GPU, FP32)",      # GPU algorithm
-#         filenames=files,
 #         output="_FP32",
 #         minn = 10^4,
 #         maxn = 10^8,
@@ -664,7 +602,6 @@ function generate_all()
 #         ["uncorr";"weakly corr";"corr"],
 #         "cqk (CPU, FP64)",      # CPU algorithm
 #         "cqk (GPU, FP64)",      # GPU algorithm
-#         filenames=files,
 #         output="_FP64",
 #         minn = 10^4,
 #         maxn = 10^8,
@@ -676,7 +613,6 @@ function generate_all()
     ###################
 #     pp(
 #         ["simplex (CPU, FP64)"; "sp simplex (CPU, FP64)"; "Condat C"; "P Condat (simplex)"],
-#         filenames=files,
 #         output="_simplex",
 #         maxthreads = 1
 #     )
@@ -685,7 +621,7 @@ function generate_all()
     # Basis pursuit plots
     ###################
     for n in [1;11]
-        for t in [1;2;4;8;16;32;64;128]
+        for t in [1;2;4;8;16;24;48]
             for m in [:time; :iter; :nonzeros]
                 if m == :nonzeros
                     title = "SC$(n)"
@@ -712,7 +648,7 @@ function generate_all()
             "SClog$(n).mat",
             miniter=3,
             title="Our algorithm on SC$(n), CPU time",
-            threads=[1;2;4;8;16;32;64;128],
+            threads=[1;2;4;8;16;24;48],
             measure=:time
         )
     end

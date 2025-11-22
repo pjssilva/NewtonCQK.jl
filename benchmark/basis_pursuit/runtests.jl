@@ -1,15 +1,31 @@
-# Matrices
-matrices_path = "SC_matrices"
-matrices = readdir(matrices_path)
+include("../common/common.jl")
+
+using MAT
+
+function get_parameters()
+    s = ArgParseSettings()
+    @add_arg_table s begin
+        "--continue"
+        arg_type = Bool
+        default = true
+        help = "continue previous tests?"
+    end
+    return parse_args(s)
+end
+
+BLAS_NTHREADS = BLAS.get_num_threads()
+BLAS.set_num_threads(1)
+
+include("../common/spg.jl")
 
 # Objective function
-function bp_f(x, A, b)
+function f(x, A, b)
     Axb = @views A*x .- b
     return 0.5 * dot(Axb, Axb)
 end
 
 # Gradient of objective function
-function bp_g!(g, x, A, b)
+function g!(g, x, A, b)
     g .= A' * (A*x .- b)
 end
 
@@ -18,14 +34,14 @@ end
 # z is copied to y for later benchmarking. This is the vector x - lambda*g
 # returned by SPG. To maintain the same SPG sequence, we only the sequential
 # algorithm is applied
-function bp_proj!(p, z, y, r)
+function proj!(p, z, y, r)
     y .= z
     _, flag = l1ball_proj!(p, y, r=(r), nchunks=1)
     return (flag == :solved)
 end
 
 # read problem in Matlab form
-function bp_read_problem(filename)
+function read_problem(filename)
     A = []
     b = []
     if isfile(filename)
@@ -38,7 +54,7 @@ function bp_read_problem(filename)
 end
 
 # Apply SPG and optionally benchmark
-function bp_solve(
+function solve(
     instance, A, b, nthreads;
     results = nothing,
     r = 1.0,
@@ -72,13 +88,13 @@ function bp_solve(
         time = estimatetime(bm)
         sol, iter, flag = spl1ball_proj(y, r=(r), chunks=(chunks))
         infeas = max(0.0, sum(abs.(sol)) - r)
-        bp_g!(g, sol, A, b)
+        g!(g, sol, A, b)
         push!(
             results,
             [
                 instance, n, outiter, "l1ball (bp)", nthreads,
                 iter, flag, time, infeas,
-                nnz(sol), bp_f(sol, A, b), norm(g, Inf)
+                nnz(sol), f(sol, A, b), norm(g, Inf)
             ]
         )
 
@@ -87,13 +103,13 @@ function bp_solve(
         time = estimatetime(bm)
         sol, iter, flag = spl1ball_proj(y, r=(r), chunks=(chunks), x0=(x0))
         infeas = max(0.0, sum(abs.(sol)) - r)
-        bp_g!(g, sol, A, b)
+        g!(g, sol, A, b)
         push!(
             results,
             [
                 instance, n, outiter, "l1ball (bp) x0", nthreads,
                 iter, flag, time, infeas,
-                nnz(sol), bp_f(sol, A, b), norm(g, Inf)
+                nnz(sol), f(sol, A, b), norm(g, Inf)
             ]
         )
 
@@ -110,13 +126,13 @@ function bp_solve(
             sol = l1ball_condat_p(y, r, nthreads, 0.001)
         end
         infeas = max(0.0, sum(abs.(sol)) - r)
-        bp_g!(g, sol, A, b)
+        g!(g, sol, A, b)
         push!(
             results,
             [
                 instance, n, outiter, "P Condat (l1ball)", nthreads,
                 -1, :not_specified, time, infeas,
-                nnz(sol), bp_f(sol, A, b), norm(g, Inf)
+                nnz(sol), f(sol, A, b), norm(g, Inf)
             ]
         )
 
@@ -129,9 +145,9 @@ function bp_solve(
     # --------
     spgsol, spgiter, flag = spg(
         n,
-        x -> bp_f(x, A, b),
-        (g, x) -> bp_g!(g, x, A, b),
-        (p, z, x0) -> bp_proj!(p, z, y, r),
+        x -> f(x, A, b),
+        (g, x) -> g!(g, x, A, b),
+        (p, z, x0) -> proj!(p, z, y, r),
         l = -Inf, u = Inf,
         callback = isnothing(results) ? nothing : b_callback,
         maxiters = 5000, x0 = x0, eps = 1e-3,
@@ -141,7 +157,7 @@ function bp_solve(
     return spgsol, spgiter, flag
 end
 
-function bp_executed(results, instance, nthreads)
+function executed(results, instance, nthreads)
     if !isempty(
         results[
             (results.Instance .== instance) .& (results.threads .== nthreads),
@@ -158,10 +174,14 @@ function bp_executed(results, instance, nthreads)
 end
 
 # All basis pursuit tests
-function bp_alltests(cont)
+function alltests(cont)
     nthreads = Threads.nthreads()
 
-    output = "results_bp.jld2"
+    # Matrices
+    matrices_path = joinpath(projectpath, "SC_matrices")
+    matrices = ["SClog1.mat"; "SClog11.mat"]
+
+    output = joinpath(projectpath, "results/results_basis_pursuit.jld2")
 
     # Results
     results = jld2_read("results", output; test = cont)
@@ -185,13 +205,11 @@ function bp_alltests(cont)
     end
 
     for mat in matrices
-        if !bp_executed(results, mat, nthreads)
+        if !executed(results, mat, nthreads)
             println("Instance $(mat), threads = $(nthreads)")
 
-            BLAS.set_num_threads(BLAS_NTHREADS)
-
             # read matrix
-            A, b = bp_read_problem(joinpath(matrices_path, mat))
+            A, b = read_problem(joinpath(matrices_path, mat))
             if isempty(A) || isempty(b)
                 println("Error while reading $(mat)")
                 continue
@@ -206,14 +224,14 @@ function bp_alltests(cont)
             end
 
             # count iterations, no benchmark
-            x, it, flag = bp_solve(
+            x, it, flag = solve(
                 mat, A, b, nthreads;
                 r = r,
                 verbose = 0
             )
 
             nonzeros = count(x .!= 0.0)
-            println("SPG exit: it = $(it)  flag = $(flag)  f = $(bp_f(x, A, b))  #nonzeros = $(nonzeros) ($(100*nonzeros/size(A,2))%)")
+            println("SPG exit: it = $(it)  flag = $(flag)  f = $(f(x, A, b))  #nonzeros = $(nonzeros) ($(100*nonzeros/size(A,2))%)")
 
             if flag != :solved
                 println("SPG fails.")
@@ -221,15 +239,13 @@ function bp_alltests(cont)
                 continue
             end
 
-            BLAS.set_num_threads(1)
-
             # SPG iterations for benchmarking
             nrange = 100
             it_range = sort(union(1:min(it, nrange), max(1, it - nrange + 1):max(1, it)))
             println("Benchmark iterations: Left range = 1:$(min(it, nrange)),  right range = $(max(1, it - nrange + 1)):$(max(1, it))")
 
             # run again... perform benchmark for iterations in "it_range"
-            _, _, flag = bp_solve(
+            _, _, flag = solve(
                 mat, A, b, nthreads;
                 results = results,
                 r = r, brange = it_range,
@@ -242,4 +258,20 @@ function bp_alltests(cont)
             jldsave(output; results)
         end
     end
+end
+
+# Main function
+function main(args)
+    # Get command line parameters
+    opts = get_parameters()
+
+    println("===================\nBasis pursuit\n===================")
+    random_alltests(opts["continue"])
+
+    return 0
+end
+
+# Run main if non-iteractive
+if abspath(PROGRAM_FILE) == @__FILE__
+    main(ARGS)
 end
