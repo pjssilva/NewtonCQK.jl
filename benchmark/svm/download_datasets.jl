@@ -5,6 +5,9 @@ using OpenML
 include("dataset.jl")
 include("../common/jld2_read.jl")
 
+# Project path
+projectpath = isfile("Project.toml") ? "./" : "../"
+
 datasets_file = joinpath(projectpath, "svm", "datasets.jld2")
 
 # Download selected datasets with OpenML
@@ -111,11 +114,13 @@ function main(args)
     id = 46598
     name, data = load_dataset(id)
     if !isnothing(data)
-        # Index of all training instances with diabetes
-        yes = sort(findall(data[:,end] .== 1.0))
+        N = 10_000
+
+        # Index first N training instances with diabetes
+        yes = sort(findall(data[1:N,end] .== 1.0))
 
         # No diabetes
-        no = sort(findall(data[:,end] .== 0.0))
+        no = sort(findall(data[1:N,end] .== 0.0))
 
         # Select instances (all "yes", first length(yes) "no")
         selected = sort(union(yes, no[1:length(yes)]))

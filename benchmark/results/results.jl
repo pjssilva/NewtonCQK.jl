@@ -132,7 +132,7 @@ function table_cpu_gpu(
     maxn = Inf,
     maxthreads = 500,
     output="",          # additional identifier for output files
-    filenames=joipath(projectpath, "results", "results.jld2")
+    filenames=joinpath(projectpath, "results", "results.jld2")
 )
     @assert length(cpualg) == length(gpualg) "Lists of CPU and GPU algorithms must have the same size"
 
@@ -205,7 +205,7 @@ end
 #     maxthreads=500,
 #     title="CPU time (ms)",
 #     output="",
-#     filenames=joipath(projectpath, "results", "results.jld2")
+#     filenames=joinpath(projectpath, "results", "results.jld2")
 # )
 #     output = "$(output_path)/pp$(output).pdf"
 #
@@ -266,7 +266,7 @@ function plot_speedup(
     plot_basealg=true,
     output="",          # additional identifier for output files
     algcuda="",
-    filenames=joipath(projectpath, "results", "results_random.jld2")
+    filenames=joinpath(projectpath, "results", "results_random.jld2")
 )
     @assert !isempty(inst) "inst must be non empty"
     @assert n > 0 "n must be > 0"
@@ -389,7 +389,7 @@ function bp_plots(
     rangesize=100,
     blanksize=20,
     xstep=0,
-    filename=joipath(projectpath, "results", "results_basis_pursuit.jld2")
+    filename=joinpath(projectpath, "results", "results_basis_pursuit.jld2")
 )
     allres = jld2_read("results", filename)
     if isnothing(allres)

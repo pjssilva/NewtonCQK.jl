@@ -1,8 +1,9 @@
 include("../common/common.jl")
 
 using Distances
+using OpenML
 
-datasets_file = joipath(projectpath, "svm", "datasets.jld2")
+datasets_file = joinpath(projectpath, "svm", "datasets.jld2")
 
 function get_parameters()
     s = ArgParseSettings()
@@ -69,6 +70,14 @@ function sparseH(Z, γ; tol = 1e-20)
     return sparse(I, J, V, n, n)
 end
 
+# Given γ and data Z, creates the nxn dense Hessian
+function denseH(Z, γ)
+    n = size(Z,2)
+    H = pairwise(SqEuclidean(), Z, Z, dims=2)
+    H .= exp.(-γ .* H)
+    return H
+end
+
 # Objective function
 function f(x, H, sgny)
     return 0.5 * dot(x, Symmetric(H), x) - dot(sgny, x)
@@ -76,7 +85,8 @@ end
 
 # Gradient of objective function
 function g!(g, x, H, sgny)
-    g .= Symmetric(H) * x .- sgny
+    mul!(g, Symmetric(H), x)
+    g .-= sgny
 end
 
 # Projection (solve particular CQK), without warm start
@@ -160,13 +170,11 @@ function solve(
     # Hessian
     H = []
     try
-        H = sparseH(Z, γ)
+        H = denseH(Z, γ)
     catch
         @error "Error when computing H"
         return [], 0, :H_error
     end
-
-    Hx = Vector{Float64}(undef, n)
 
     # CQK for subproblems
     # Note: P.b must be positive, so we change variables (P.l, P.u, P.a must be
@@ -288,7 +296,7 @@ function executed(results, instance, nthreads)
 end
 
 # All SVM tests
-function alltests(cont; max_inst = 0)
+function alltests(cont)
     nthreads = Threads.nthreads()
 
     datasets = jld2_read("datasets", datasets_file)
@@ -296,7 +304,7 @@ function alltests(cont; max_inst = 0)
         return
     end
 
-    output = joipath(projectpath, "results", "results_svm.jld2")
+    output = joinpath(projectpath, "results", "results_svm.jld2")
 
     # Results
     results = jld2_read("results", output; test = cont)
@@ -319,15 +327,17 @@ function alltests(cont; max_inst = 0)
         )
     end
 
-    for d in [4]
+    for d in [1]#eachindex(datasets)
         if !executed(results, datasets[d].name, nthreads)
             γ = 1.0 / datasets[d].features
             C = 1.0
 
-            n,m = size(datasets[d].data)
+            n, m = size(datasets[d].data)
             m -= 1
-            println("\nDataset: $(datasets[d].name) (id $(datasets[d].id))   Instances: $(n)   Features: $(m)")
-            println("Parameters: γ = $(γ), C = $(C)")
+            println("\nDataset: $(datasets[d].name) (id $(datasets[d].id))")
+            println("Instances: $(n)")
+            println("Features: $(m)")
+            @printf("Parameters: γ = %12.8lf, C = %12.8lf", γ, C)
 
             Z, w = readdataset(datasets[d].id, datasets)
             if isnothing(Z)
@@ -335,26 +345,13 @@ function alltests(cont; max_inst = 0)
                 continue
             end
 
-            # Select instances
-#             if max_inst <= 0
-#                 # Select 60% of the instances randomly
-#                 max_inst = ceil(Int64, length(w) * 0.6)
-#             end
-#             mask_inst = rand(1:length(w), min(max_inst, length(w)))
-#             println("Number of instances considered: $(length(mask_inst))")
-#
-#             # Filter data
-#             Z = Z[:,mask_inst]
-#             w = w[mask_inst]
-
             _, it, flag, error_measure, nerror = solve(
                 datasets[d].name, Z, w, nthreads;
                 γ = γ, C = C, verbose = 1,
 #                 x0 = fill(1.0,n)
             )
 
-            @show error_measure
-            @show nerror
+            @printf("Error = %12.8lf (%12.8lf samples)", error_measure, nerror)
 
             if flag != :solved
                 println("SPG fails.")
@@ -365,7 +362,7 @@ function alltests(cont; max_inst = 0)
             # SPG iterations for benchmarking
 #             nrange = 100
 #             it_range = sort(union(1:min(it, nrange), max(1, it - nrange + 1):max(1, it)))
-#             println("Benchmark iterations: Left range = 1:$(min(it, nrange)),  right range = $(max(1, it - nrange + 1)):$(max(1, it))")
+#             println("Benchmark iterations: 1:$(min(it, nrange)),  $(max(1, it - nrange + 1)):$(max(1, it))")
 #
 #             # run again... perform benchmark for iterations in "it_range"
 #             _, _, flag = solve(
