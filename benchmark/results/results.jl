@@ -10,6 +10,7 @@ using LaTeXStrings
 include("../common/jld2_read.jl")
 include("../svm/dataset.jl")
 
+projectpath = isfile("Project.toml") ? "./" : "../"
 output_path = joinpath(projectpath, "results", "output")
 
 if !isdir(output_path)
@@ -46,7 +47,10 @@ alglabels = Dict(
     "l1ball (CPU, FP32)"    => "Specialized Algorithm 1 (dense)",
     "l1ball (GPU, FP32)"    => "Specialized Algorithm 1 (GPU)",
     "l1ball (bp)"           => "Our algorithm",
-    "l1ball (bp) x0"        => "Our algorithm (warm start)"
+    "l1ball (bp) x0"        => "Our algorithm (warm start)",
+    "cqk (SVM)"             => "Algorithm 1",
+    "cqk (SVM) x0"          => "Algorithm 1 (warm start)",
+    "cqn (SVM)"             => "CMS's algorithm"
 )
 
 #########################
@@ -131,12 +135,12 @@ function table_cpu_gpu(
     minn = 0,
     maxn = Inf,
     maxthreads = 500,
-    output="",          # additional identifier for output files
-    filenames=joinpath(projectpath, "results", "results.jld2")
+    suffix="",
+    filenames=joinpath(projectpath, "results", "results_random.jld2")
 )
     @assert length(cpualg) == length(gpualg) "Lists of CPU and GPU algorithms must have the same size"
 
-    outfile = joinpath(output_path, "table$(output).tex")
+    outfile = joinpath(output_path, "table$(suffix).tex")
 
     res = read_results(filenames)
     res_tmp = filter_results(res; instance=inst[1])
@@ -195,63 +199,6 @@ function table_cpu_gpu(
     println("File $(outfile) was generated.")
 end
 
-# plot the figure of a performance profile of CPU times
-# IMPORTANT: unless time = Inf, it is considered that all algorithms solved all problems.
-# function pp(
-#     algs;
-#     minn=0,
-#     maxn=10^20,
-#     minthreads=1,
-#     maxthreads=500,
-#     title="CPU time (ms)",
-#     output="",
-#     filenames=joinpath(projectpath, "results", "results.jld2")
-# )
-#     output = "$(output_path)/pp$(output).pdf"
-#
-#     res = read_results(filenames)
-#
-#     # Instances that at least one algorithm in algs was applied
-#     inst = String[]
-#     for p in unique(res.Instance)
-#         for a in algs
-#             Tinst = filter_results(res, instance=p, algorithm=a)
-#             if !isempty(Tinst)
-#                 push!(inst, p)
-#                 break
-#             end
-#         end
-#     end
-#
-#     # Filter results, excluding unsolved instances
-#     res = filter_results(
-#         res, minn=minn, maxn=maxn, minthreads=minthreads, maxthreads=maxthreads
-#     )
-#
-#     T = Matrix{Float64}(undef, 0, length(algs))
-#     for p in inst
-#         T = [T; transpose(fill(Inf, length(algs)))]
-#         for a in 1:length(algs)
-#             Talg = filter_results(res, instance=p, algorithm=algs[a])
-#             if !isempty(Talg)
-#                 T[end,a] = Talg.time[1]
-#             end
-#         end
-#     end
-#
-#     fig = performance_profile(
-#         PlotsBackend(),
-#         Float64.(T),
-#         [alglabels[algs[a]] for a = 1:length(algs)];
-#         title=title,
-#         logscale=true,
-#         #fontfamily="Computer Modern",
-#         lw=2#, color=:black, ls=:auto
-#     )
-#     savefig(fig, output)
-#     println("File $(output) was generated.")
-# end
-
 # relative speedup
 # if 'inst' is a vector, plot speedups relative to the algorithm 'alg'
 # if 'alg' is a vector, plot speedups relative to the instance 'inst'
@@ -264,7 +211,6 @@ function plot_speedup(
     legpos=:best,
     minthreads=2,
     plot_basealg=true,
-    output="",          # additional identifier for output files
     algcuda="",
     filenames=joinpath(projectpath, "results", "results_random.jld2")
 )
@@ -276,9 +222,9 @@ function plot_speedup(
     @assert (length(alg) > 1) || (length(inst) > 1) "alg or inst must be length > 1"
 
     if length(alg) > 1
-        outfile = joinpath(output_path, "speedup$(output)_$(replace(inst[1], " " => "_"))_$(n).pdf")
+        outfile = joinpath(output_path, "speedup_$(replace(inst[1], " " => "_"))_$(n).pdf")
     else
-        outfile = joinpath(output_path, "speedup$(output)_$(replace(alg[1], " " => "_"))_$(n).pdf")
+        outfile = joinpath(output_path, "speedup_$(replace(alg[1], " " => "_"))_$(n).pdf")
     end
     res = read_results(filenames)
 
@@ -373,16 +319,16 @@ end
 
 
 #########################
-# BASIS PURSUIT
+# BASIS PURSUIT AND SVM
 #########################
 
-function bp_plots(
+function spg_plots(
     basealg,
     algs,
     instance;
     measure=:time,
     legpos=:best,
-    output="",
+    prefix="",
     miniter=1,
     title="",
     threads=[1],
@@ -406,13 +352,13 @@ function bp_plots(
     end
 
     if length(threads) == 1
-        outfile = joinpath(output_path, "bp_$(instance)_$(measure)_th$(threads[1])$(output).pdf")
+        outfile = joinpath(output_path, "$(prefix)$(instance)_$(measure)_th$(threads[1]).pdf")
     else
-        outfile = joinpath(output_path, "bp_$(instance)_$(measure)$(output).pdf")
+        outfile = joinpath(output_path, "$(prefix)$(instance)_$(measure).pdf")
     end
 
     relative = (measure == :time)
-    nonzeros = (measure == :nonzeros)
+    nfixed = (measure == :nfixed)
 
     # iters for plot
     iters = Int64.(unique(res.outiter))
@@ -465,8 +411,8 @@ function bp_plots(
     # initialize plot
     fig = plot(; title=title,
         xlabel="SPG iteration",
-        ylabel=nonzeros ? "nonzeros (%)" : relative ? "relative speedup" : "",
-        legend=nonzeros ? false : legpos,
+        ylabel=nfixed ? "Fixed variables (%)" : relative ? "relative speedup" : "",
+        legend=nfixed ? false : legpos,
         fontfamily="Computer Modern",
         xticks=(xticks, xtickstext)
     )
@@ -476,7 +422,7 @@ function bp_plots(
     baseplot = relative ? fill(1.0, length(basemeasures)) : basemeasures
     baseplot[novalues] .= NaN
 
-    if nonzeros
+    if nfixed
         n = res[res.Algorithm .== basealg, :n][1]
         baseplot ./= n
     end
@@ -490,7 +436,7 @@ function bp_plots(
         lw=1
     )
 
-    if !nonzeros
+    if !nfixed
         if length(threads) == 1
             # specific number of threads, different algorithms
             for a in algs
@@ -553,84 +499,78 @@ end
 
 function generate_all()
 
-    ###################
-    # Speedup CQK
-    ###################
-#     base = "cqk (CPU, FP64)"
-#     for n in CQK_sizes
-#         plot_speedup(
-#             CQK_names,
-#             n,
-#             base,
-#             ["cqk (CPU, FP64)"];
-#             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}"),
-#             plot_basealg=false
-#         )
-#     end
+    println("===================\nResults\n===================")
 
     ###################
-    # Speedup Simplex
+    # Random, Speedup CQK
     ###################
-#     base = "Condat C"
-#     for n in simplex_sizes, p in simplex_names
-#         ptext = replace(p," " => "\\ ")
-#         plot_speedup(
-#             [p],
-#             n,
-#             base,
-#             ["simplex (CPU, FP64)", "sp simplex (CPU, FP64)", "P Condat (simplex)"];
-#             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
-#             # include 1 thread, as the comparison is with Condat's C code
-#             minthreads=1,
-#             #algcuda="simplex (GPU, FP64)"
-#         )
-#     end
+    base = "cqk (CPU, FP64)"
+    for n in CQK_sizes
+        plot_speedup(
+            CQK_names,
+            n,
+            base,
+            ["cqk (CPU, FP64)"];
+            title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}"),
+            plot_basealg=false
+        )
+    end
 
     ###################
-    # Tables CPU vs GPU
+    # Random, Speedup Simplex
     ###################
-#     table_cpu_gpu(
-#         ["uncorr";"weakly corr";"corr"],
-#         "cqk (CPU, FP32)",      # CPU algorithm
-#         "cqk (GPU, FP32)",      # GPU algorithm
-#         output="_FP32",
-#         minn = 10^4,
-#         maxn = 10^8,
-#         maxthreads = 64
-#     )
-#     table_cpu_gpu(
-#         ["uncorr";"weakly corr";"corr"],
-#         "cqk (CPU, FP64)",      # CPU algorithm
-#         "cqk (GPU, FP64)",      # GPU algorithm
-#         output="_FP64",
-#         minn = 10^4,
-#         maxn = 10^8,
-#         maxthreads = 64
-#     )
+    base = "Condat C"
+    for n in simplex_sizes, p in simplex_names
+        ptext = replace(p," " => "\\ ")
+        plot_speedup(
+            [p],
+            n,
+            base,
+            ["simplex (CPU, FP64)", "sp simplex (CPU, FP64)", "P Condat (simplex)"];
+            title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
+            # include 1 thread, as the comparison is with Condat's C code
+            minthreads=1,
+            #algcuda="simplex (GPU, FP64)"
+        )
+    end
 
     ###################
-    # Performance profile
+    # Random, Tables CPU vs GPU
     ###################
-#     pp(
-#         ["simplex (CPU, FP64)"; "sp simplex (CPU, FP64)"; "Condat C"; "P Condat (simplex)"],
-#         output="_simplex",
-#         maxthreads = 1
-#     )
+    table_cpu_gpu(
+        ["uncorr";"weakly corr";"corr"],
+        "cqk (CPU, FP32)",      # CPU algorithm
+        "cqk (GPU, FP32)",      # GPU algorithm
+        suffix="_FP32",
+        minn = 10^4,
+        maxn = 10^8,
+        maxthreads = 64
+    )
+    table_cpu_gpu(
+        ["uncorr";"weakly corr";"corr"],
+        "cqk (CPU, FP64)",      # CPU algorithm
+        "cqk (GPU, FP64)",      # GPU algorithm
+        suffix="_FP64",
+        minn = 10^4,
+        maxn = 10^8,
+        maxthreads = 64
+    )
 
     ###################
-    # Basis pursuit plots
+    # Basis pursuit
     ###################
     for n in [1;11]
+        # Speedup, iterations and #fixed vars per thread
         for t in [1;2;4;8;16;24;48]
-            for m in [:time; :iter; :nonzeros]
-                if m == :nonzeros
+            for m in [:time; :iter; :nfixed]
+                if m == :nfixed
                     title = "SC$(n)"
                 elseif m == :time
                     title = "SC$(n), CPU time ($(t) thread$(t > 1 ? "s" : ""))"
                 elseif m == :iter
                     title = "SC$(n), projection iterations ($(t) thread$(t > 1 ? "s" : ""))"
                 end
-                bp_plots(
+                spg_plots(
                     "l1ball (bp)",
                     ["l1ball (bp) x0"; "P Condat (l1ball)"],
                     "SClog$(n).mat",
@@ -638,18 +578,69 @@ function generate_all()
                     title=title,
                     threads=[t],
                     measure=m,
-                    legpos=:topright
+                    filename=joinpath(projectpath, "results", "results_basis_pursuit.jld2"),
+                    prefix="bp_",
+                    #legpos=:topright
                 )
             end
         end
-        bp_plots(
+
+        # Speedup, various threads
+        spg_plots(
             "l1ball (bp) x0",
             ["l1ball (bp) x0"],
             "SClog$(n).mat",
             miniter=3,
             title="Our algorithm on SC$(n), CPU time",
             threads=[1;2;4;8;16;24;48],
-            measure=:time
+            measure=:time,
+            filename=joinpath(projectpath, "results", "results_basis_pursuit.jld2"),
+            prefix="bp_"
+        )
+    end
+
+    ###################
+    # SVM
+    ###################
+    for p in ["mnist_784"; "cdc_diabetes"]
+        problem = (p == "mnist_784") ? "MNIST" : "cdc_diabetes"
+
+        # Speedup, iterations and #fixed vars per thread
+        for t in [1;2;4;8;16;24;48]
+            for m in [:time; :iter; :nfixed]
+                if m == :nfixed
+                    title = problem
+                elseif m == :time
+                    title = "$(problem), CPU time ($(t) thread$(t > 1 ? "s" : ""))"
+                elseif m == :iter
+                    title = "$(problem), projection iterations ($(t) thread$(t > 1 ? "s" : ""))"
+                end
+                spg_plots(
+                    "cqk (SVM)",
+                    ["cqk (SVM) x0"; "cqn (SVM)"],
+                    p,
+                    miniter=3,
+                    title=title,
+                    threads=[t],
+                    measure=m,
+                    filename=joinpath(projectpath, "results", "results_svm.jld2"),
+                    prefix="svm_",
+                    #legpos=:topright
+                )
+            end
+        end
+
+        # Speedup, various threads
+        spg_plots(
+            "cqk (SVM) x0",
+            ["cqk (SVM) x0"],
+            p,
+            miniter=3,
+            title="Our algorithm on $(problem), CPU time",
+            threads=[1;2;4;8;16;24;48],
+            measure=:time,
+            filename=joinpath(projectpath, "results", "results_svm.jld2"),
+            prefix="svm_"
         )
     end
 end

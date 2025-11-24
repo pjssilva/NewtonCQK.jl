@@ -40,6 +40,7 @@ function spg(n, f, g!, proj!;
 
     fx = f(x)
     g!(g, x)
+    gsupn = Inf
     lastf[1] = fx
 
     # Initial spectral steplength
@@ -69,7 +70,7 @@ function spg(n, f, g!, proj!;
         gsupn = norm(d, Inf)
 
         if verbose > 0
-            println("SPG iter: $(iter)    |proj g| = $(gsupn)    f = $(fx)")
+            @printf("SPG iter: %8d    |proj g| = %12.8e    f = %12.8e\n", iter, gsupn, fx)
         end
 
         # Test whether convergence is achieved
@@ -131,9 +132,8 @@ function spg(n, f, g!, proj!;
         end
     end
 
-    if verbose > 0
-        println("\nSPG exit status: $(flag)")
-    end
+    println("\nSPG exit status: $(flag)")
+    @printf("\nSummary: iters = %d    |proj g| = %12.8e    f = %12.8e\n", iter, gsupn, fx)
 
     return x, iter, flag
 end

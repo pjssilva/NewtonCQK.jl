@@ -59,7 +59,7 @@ function solve(
     results = nothing,
     r = 1.0,
     x0 = Float64[],
-    brange = 1:100_000_000,
+    brange = 1:10^10,
     verbose = 1
 )
     @assert r > 0 throw(ArgumentError("r must be positive"))
@@ -150,7 +150,7 @@ function solve(
         (p, z, x0) -> proj!(p, z, y, r),
         l = -Inf, u = Inf,
         callback = isnothing(results) ? nothing : b_callback,
-        maxiters = 5000, x0 = x0, eps = 1e-3,
+        maxiters = 10^5, x0 = x0, eps = 1e-4,
         verbose = verbose
     )
 
@@ -178,7 +178,7 @@ function alltests(cont)
     nthreads = Threads.nthreads()
 
     # Matrices
-    matrices_path = joinpath(projectpath, "SC_matrices")
+    matrices_path = joinpath(projectpath, "basis_pursuit", "SC_matrices")
     matrices = ["SClog1.mat"; "SClog11.mat"]
 
     output = joinpath(projectpath, "results/results_basis_pursuit.jld2")
@@ -197,7 +197,7 @@ function alltests(cont)
                 "st" => []
                 "time" => Float64[]
                 "infeas" => Float64[]
-                "nonzeros" => Float64[]
+                "nfixed" => Float64[]
                 "f" => Float64[]
                 "gsupn" => Float64[]
             ]
@@ -231,7 +231,7 @@ function alltests(cont)
             )
 
             nonzeros = count(x .!= 0.0)
-            println("SPG exit: it = $(it)  flag = $(flag)  f = $(f(x, A, b))  #nonzeros = $(nonzeros) ($(100*nonzeros/size(A,2))%)")
+            @printf("# nonzeros = %d (%.3lf %%)\n", nonzeros, 100 * nonzeros/size(A,2))
 
             if flag != :solved
                 println("SPG fails.")
@@ -266,7 +266,7 @@ function main(args)
     opts = get_parameters()
 
     println("===================\nBasis pursuit\n===================")
-    random_alltests(opts["continue"])
+    alltests(opts["continue"])
 
     return 0
 end

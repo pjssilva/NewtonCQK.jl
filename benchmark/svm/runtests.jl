@@ -3,8 +3,6 @@ include("../common/common.jl")
 using Distances
 using OpenML
 
-datasets_file = joinpath(projectpath, "svm", "datasets.jld2")
-
 function get_parameters()
     s = ArgParseSettings()
     @add_arg_table s begin
@@ -18,6 +16,8 @@ end
 
 BLAS_NTHREADS = BLAS.get_num_threads()
 BLAS.set_num_threads(1)
+
+datasets_file = joinpath(projectpath, "svm", "datasets.jld2")
 
 include("../common/spg.jl")
 include("dataset.jl")
@@ -39,40 +39,18 @@ function readdataset(id, datasets)
     if length(c) != 2
         return nothing, nothing
     end
-    n,m = size(datasets[row].data)
+    n, m = size(datasets[row].data)
     m -= 1
     Z = Matrix{Float64}(undef, m, n)
     Z .= Float64.(Matrix(datasets[row].data[:, 1:(end-1)])')
-    w = ones(n)
+    y = ones(n)
     # c[1]: 1, c[2]: -1
-    w[datasets[row].data[:,end] .== c[1]] .= -1
-    return Z, w
-end
-
-# Given γ and data Z, creates the nxn sparse Hessian
-# discarding entries <= tol. Only the upper triangle is stored
-function sparseH(Z, γ; tol = 1e-20)
-    n = size(Z,2)
-    I = Int32[]
-    J = Int32[]
-    V = Float64[]
-    @inbounds for i in 1:(n-1)
-        for j in (i+1):n
-            # Gaussian kernel
-            @views aux = exp(-γ * sqeuclidean(Z[:,i], Z[:,j]))
-            if aux >= tol
-                push!(I, i)
-                push!(J, j)
-                push!(V, aux)
-            end
-        end
-    end
-    return sparse(I, J, V, n, n)
+    y[datasets[row].data[:,end] .== c[1]] .= -1
+    return Z, y
 end
 
 # Given γ and data Z, creates the nxn dense Hessian
 function denseH(Z, γ)
-    n = size(Z,2)
     H = pairwise(SqEuclidean(), Z, Z, dims=2)
     H .= exp.(-γ .* H)
     return H
@@ -100,8 +78,8 @@ function proj!(p, z, P::CQKProblem)
     return (flag == :solved)
 end
 
-# Compute classification error
-function svm_error(dualsol, H, y, C)
+# Classification
+function classification(dualsol, H, y, C)
     error_measure = 0.0
     nerror = 0
 
@@ -112,13 +90,13 @@ function svm_error(dualsol, H, y, C)
     # Compute b using all dual variables in (0,C)
     b = 0.0
     nint = 0
-    for j in eachindex(y)
+    @inbounds for j in eachindex(y)
         if (dualsol[j] > eps()) && (dualsol[j] < C - eps())
             bj = 0.0
             for i in eachindex(y)
-                bj -= dualsol[i] * y[i] * H[i,j]
+                bj += dualsol[i] * y[i] * H[i,j]
             end
-            b += y[j] - bj
+            b += bj - y[j]
             nint += 1
         elseif dualsol[j] <= eps()
             n0 += 1
@@ -130,23 +108,43 @@ function svm_error(dualsol, H, y, C)
     if nint > 0
         b /= nint
     else
-        # If there is no variables in (0,C), use those equal to C
+        # there is no variables in (0,C)
+        L = -Inf
+        U = Inf
+        @inbounds for j in eachindex(y)
+            s = 0.0
+            for i in eachindex(y)
+                s += dualsol[i] * y[i] * H[i,j]
+            end
+            if dualsol[j] <= eps()
+                if y[j] > 0.0
+                    L = max(L, s - 1.0)
+                else
+                    U = min(U, s + 1.0)
+                end
+            else
+                if y[j] > 0.0
+                    U = min(U, s - 1.0)
+                else
+                    L = max(L, s + 1.0)
+                end
+            end
+        end
+        b = (L + U)/2
     end
 
-    for j in eachindex(y)
+    @inbounds for j in eachindex(y)
         s = 0.0
         for i in eachindex(y)
             s += dualsol[i] * y[i] * H[i,j]
         end
-        s += b
-        errorj = abs(y[j] * s - 1)
-        error_measure += errorj
-        if errorj > 1e-4
+        s -= b
+        if signbit(s) != signbit(y[j])
             nerror += 1
         end
     end
 
-    return error_measure, nerror
+    return nerror, n0, nint, nC
 end
 
 # Apply SPG and optionally benchmark
@@ -157,7 +155,7 @@ function solve(
     γ = 0.01,
     C = 1.0,
     x0 = Float64[],
-    brange = 1:100_000_000,
+    brange = 1:10^10,
     verbose = 1
 )
     @assert γ > 0.0 throw(ArgumentError("γ must be positive"))
@@ -172,8 +170,8 @@ function solve(
     try
         H = denseH(Z, γ)
     catch
-        @error "Error when computing H"
-        return [], 0, :H_error
+        @error "Error while computing H"
+        return 0, :H_error, 0, 0, 0, 0, 0
     end
 
     # CQK for subproblems
@@ -267,16 +265,17 @@ function solve(
         (p, z, x0) -> proj!(p, z, P),
         l = P.l, u = P.u,
         callback = isnothing(results) ? nothing : b_callback,
-        maxiters = 300, x0 = x0, eps = 1e-5,
+        maxiters = 10^5, x0 = x0, eps = 1e-4,
         verbose = verbose
     )
 
     # Revert variable changes
     dualsol[maskchg] .*= -1.0
 
-    error_measure, nerror = svm_error(dualsol, Symmetric(H), y, C)
+    # Classification quality
+    nerr, n0, nint, nC = classification(dualsol, Symmetric(H), y, C)
 
-    return dualsol, spgiter, flag, error_measure, nerror
+    return spgiter, flag, nerr, n0, nint, nC
 end
 
 function executed(results, instance, nthreads)
@@ -320,60 +319,62 @@ function alltests(cont)
                 "st" => []
                 "time" => Float64[]
                 "infeas" => Float64[]
-                "nonzeros" => Float64[]
+                "nfixed" => Float64[]
                 "f" => Float64[]
                 "gsupn" => Float64[]
             ]
         )
     end
 
-    for d in [1]#eachindex(datasets)
+    for d in eachindex(datasets)
         if !executed(results, datasets[d].name, nthreads)
-            γ = 1.0 / datasets[d].features
-            C = 1.0
+            # Params for MNIST / cdc_diabetes
+            γ = (d == 1) ? 0.007 : 0.5
+            C = (d == 1) ? 5.0 : 10.0
 
             n, m = size(datasets[d].data)
             m -= 1
             println("\nDataset: $(datasets[d].name) (id $(datasets[d].id))")
             println("Instances: $(n)")
             println("Features: $(m)")
-            @printf("Parameters: γ = %12.8lf, C = %12.8lf", γ, C)
+            @printf("Parameters: γ = %12.8lf, C = %12.8lf\n", γ, C)
 
-            Z, w = readdataset(datasets[d].id, datasets)
+            Z, y = readdataset(datasets[d].id, datasets)
             if isnothing(Z)
                 println('-'^98)
                 continue
             end
 
-            _, it, flag, error_measure, nerror = solve(
-                datasets[d].name, Z, w, nthreads;
-                γ = γ, C = C, verbose = 1,
-#                 x0 = fill(1.0,n)
+            it, flag, nerror, n0, nint, nC = solve(
+                datasets[d].name, Z, y, nthreads;
+                γ = γ, C = C, verbose = 0
             )
 
-            @printf("Error = %12.8lf (%12.8lf samples)", error_measure, nerror)
-
             if flag != :solved
-                println("SPG fails.")
                 println('-'^98)
                 continue
             end
 
+            println("# dual variables = 0: $(n0)")
+            @printf("# dual variables in (0,C): %d (%.3lf %%)", nint, 100 * (nint/n))
+            println("# dual variables = C: $(nC)")
+            @printf("Error: %d samples (%.3lf %%)", nerror, 100 * (nerror/n))
+
             # SPG iterations for benchmarking
-#             nrange = 100
-#             it_range = sort(union(1:min(it, nrange), max(1, it - nrange + 1):max(1, it)))
-#             println("Benchmark iterations: 1:$(min(it, nrange)),  $(max(1, it - nrange + 1)):$(max(1, it))")
-#
-#             # run again... perform benchmark for iterations in "it_range"
-#             _, _, flag = solve(
-#                 datasets[d].name, Z, w, nthreads;
-#                 results = results, γ = γ, C = C, verbose = 0
-#             )
-#
-#             println('-'^98)
-#
-#             # Save results
-#             jldsave(output; results)
+            nrange = 100
+            it_range = sort(union(1:min(it, nrange), max(1, it - nrange + 1):max(1, it)))
+            println("Benchmark iterations: 1:$(min(it, nrange)),  $(max(1, it - nrange + 1)):$(max(1, it))")
+
+            # run again... perform benchmark for iterations in "it_range"
+            _, _, flag = solve(
+                datasets[d].name, Z, y, nthreads;
+                results = results, γ = γ, C = C, verbose = 0
+            )
+
+            println('-'^98)
+
+            # Save results
+            jldsave(output; results)
         end
     end
 end
@@ -384,7 +385,7 @@ function main(args)
     opts = get_parameters()
 
     println("===================\nSVM\n===================")
-    random_alltests(opts["continue"])
+    alltests(opts["continue"])
 
     return 0
 end

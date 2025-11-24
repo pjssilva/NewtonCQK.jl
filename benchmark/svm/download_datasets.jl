@@ -73,7 +73,9 @@ function load_dataset(id)
 end
 
 # Main function
-function main(args)
+function main()
+    println("=========\nDownloading SVM datasets\n=========")
+
     datasets = jld2_read("datasets", datasets_file)
     if isnothing(datasets)
         datasets = DATASET[]
@@ -106,6 +108,8 @@ function main(args)
         data[:,1:(end-1)] ./= 255
 
         push!(datasets, DATASET(id, name, size(data,2)-1, size(data,1), data))
+
+        println("$(name) downloaded")
     end
 
     ################
@@ -117,18 +121,20 @@ function main(args)
         N = 10_000
 
         # Index first N training instances with diabetes
-        yes = sort(findall(data[1:N,end] .== 1.0))
+        yes = sort(findall(data[:,end] .== 1.0))
 
         # No diabetes
-        no = sort(findall(data[1:N,end] .== 0.0))
+        no = sort(findall(data[:,end] .== 0.0))
 
         # Select instances (all "yes", first length(yes) "no")
-        selected = sort(union(yes, no[1:length(yes)]))
+        selected = sort(union(yes[1:N], no[1:N]))
 
         # Filter data
         data = data[selected,:]
 
         push!(datasets, DATASET(id, name, size(data,2)-1, size(data,1), data))
+
+        println("$(name) downloaded")
     end
 
     jldsave(datasets_file; datasets)
