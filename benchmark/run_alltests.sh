@@ -1,8 +1,8 @@
 #!/usr/bin/bash
 
 # Julia executable
-# juliacmd="julia-1.10"
-juliacmd="julia +1.10.9"
+juliacmd="julia-1.10"
+# juliacmd="julia +1.10.9"
 
 # Threads
 threads="1 2 4 8 16 24 48"

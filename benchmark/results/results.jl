@@ -50,7 +50,7 @@ alglabels = Dict(
     "l1ball (bp) x0"        => "Our algorithm (warm start)",
     "cqk (SVM)"             => "Algorithm 1",
     "cqk (SVM) x0"          => "Algorithm 1 (warm start)",
-    "cqn (SVM)"             => "CMS's algorithm"
+    "cqn (SVM)"             => "CMS algorithm"
 )
 
 #########################
@@ -566,7 +566,7 @@ function generate_all()
                 if m == :nfixed
                     title = "SC$(n)"
                 elseif m == :time
-                    title = "SC$(n), CPU time ($(t) thread$(t > 1 ? "s" : ""))"
+                    title = "SC$(n), $(t) thread$(t > 1 ? "s" : "")"
                 elseif m == :iter
                     title = "SC$(n), projection iterations ($(t) thread$(t > 1 ? "s" : ""))"
                 end
@@ -591,7 +591,7 @@ function generate_all()
             ["l1ball (bp) x0"],
             "SClog$(n).mat",
             miniter=3,
-            title="Our algorithm on SC$(n), CPU time",
+            title="Our algorithm on SC$(n)",
             threads=[1;2;4;8;16;24;48],
             measure=:time,
             filename=joinpath(projectpath, "results", "results_basis_pursuit.jld2"),
@@ -611,13 +611,13 @@ function generate_all()
                 if m == :nfixed
                     title = problem
                 elseif m == :time
-                    title = "$(problem), CPU time ($(t) thread$(t > 1 ? "s" : ""))"
+                    title = "$(problem), $(t) thread$(t > 1 ? "s" : "")"
                 elseif m == :iter
                     title = "$(problem), projection iterations ($(t) thread$(t > 1 ? "s" : ""))"
                 end
                 spg_plots(
                     "cqk (SVM)",
-                    ["cqk (SVM) x0"; "cqn (SVM)"],
+                    (t == 1) ? ["cqk (SVM) x0"; "cqn (SVM)"] : ["cqk (SVM) x0"],
                     p,
                     miniter=3,
                     title=title,
@@ -636,7 +636,7 @@ function generate_all()
             ["cqk (SVM) x0"],
             p,
             miniter=3,
-            title="Our algorithm on $(problem), CPU time",
+            title="Algorithm 1 on $(problem)",
             threads=[1;2;4;8;16;24;48],
             measure=:time,
             filename=joinpath(projectpath, "results", "results_svm.jld2"),
