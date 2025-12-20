@@ -149,14 +149,14 @@ function table_cpu_gpu(
 
     tex = open(outfile, "w")
     write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}ll$(repeat("ll", length(inst)))@{\\extracolsep\\fill}}\n")
-    write(tex, "\\toprule\n")
+    write(tex, "\\hline\n")
     write(tex, "& ")
     for p in inst
         write(tex, " & \\multicolumn{2}{l}{$(instancelabels[p])}")
     end
     write(tex, "\\\\\n")
     write(tex, "\$n\$ & th $(repeat(" & CPU time & GPU sp up", length(inst)))\\\\\n")
-    write(tex, "\\midrule\n")
+    write(tex, "\\hline\n")
     for n in ns
         if (n < minn) || (n > maxn)
             continue
@@ -193,7 +193,7 @@ function table_cpu_gpu(
             write(tex, "\\hline\n")
         end
     end
-    write(tex, "\\botrule\n\\end{tabular*}")
+    write(tex, "\\hline\n\\end{tabular*}")
 
     close(tex)
     println("File $(outfile) was generated.")
