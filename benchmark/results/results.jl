@@ -175,16 +175,21 @@ function table_cpu_gpu(
                     res; minn=n, maxn=n, minthreads=th, maxthreads=th,
                     algorithm=cpualg, instance=p
                 )
-                if isempty(Tcpu) || isempty(Tgpu)
-                    write(tex, " & $(!isempty(Tcpu) ? "\\checkmark" : "--") & $(!isempty(Tgpu) ? "\\checkmark" : "--") ")
-                    continue
+                if isempty(Tcpu)
+                    write(tex, " & -- & $(!isempty(Tgpu) ? "\\checkmark" : "--") ")
+                else
+                    cputime = Tcpu[1,:time][1]
+                    cpuiter = Tcpu[1,:iter][1]
+                    write(tex, " & $(fmt_etex0(cputime)) ($(strip(fmt_lf1(cpuiter))))")
+                    if !isempty(Tgpu)
+                        gputime = Tgpu[1,:time][1]
+                        gpuiter = Tgpu[1,:iter][1]
+                        spup = cputime / gputime
+                        write(tex, " & $(fmt_lf1(spup)) ($(strip(fmt_lf1(gpuiter))))")
+                    else
+                        write(tex, " & --")
+                    end
                 end
-                cputime = Tcpu[1,:time][1]
-                gputime = Tgpu[1,:time][1]
-                spup = cputime / gputime
-                cpuiter = Tcpu[1,:iter][1]
-                gpuiter = Tgpu[1,:iter][1]
-                write(tex, " & $(fmt_etex0(cputime)) ($(strip(fmt_lf1(cpuiter)))) & $(fmt_lf1(spup)) ($(strip(fmt_lf1(gpuiter))))")
             end
 
             write(tex, " \\\\\n")
@@ -543,8 +548,7 @@ function generate_all()
         "cqk (GPU, FP32)",      # GPU algorithm
         suffix="_FP32",
         minn = 10^4,
-        maxn = 10^8,
-        maxthreads = 64
+        maxn = 10^9
     )
     table_cpu_gpu(
         ["uncorr";"weakly corr";"corr"],
@@ -552,8 +556,7 @@ function generate_all()
         "cqk (GPU, FP64)",      # GPU algorithm
         suffix="_FP64",
         minn = 10^4,
-        maxn = 10^8,
-        maxthreads = 64
+        maxn = 10^9
     )
 
     ###################
