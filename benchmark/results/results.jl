@@ -18,13 +18,7 @@ if !isdir(output_path)
 end
 
 # Formats
-fmt_d = generate_formatter("%'d")
-fmt_lf = generate_formatter("%6.2lf")
-fmt_lf1 = generate_formatter("%5.1lf")
-fmt_e = generate_formatter("%8.2e")
-fmt_e0 = generate_formatter("%7.0e")
-fmt_etex(v) = replace(fmt_e(v), "e+" => "e\$+\$")
-fmt_etex0(v) = replace(fmt_e0(v), "e+" => "e\$+\$")
+fmt_latex(fmt,v) = replace(fmt(v), "e+" => "e\$+\$", "e-" => "e\$-\$")
 
 # Algorithm legend labels
 alglabels = Dict(
@@ -127,7 +121,9 @@ function filter_results(allres;
     ]
 end
 
-# write LaTeX file of a table
+# LaTeX table CPU vs GPU
+# Times are expressed in nanoseconds. The "timefactor" parameter can be used
+# to adjust the unit: 1e-3 (microseconds), 1e-6 (milliseconds), 1e-9 (seconds)
 function table_cpu_gpu(
     inst,
     cpualg,
@@ -136,9 +132,15 @@ function table_cpu_gpu(
     maxn = Inf,
     maxthreads = 500,
     suffix="",
+    timefactor=1e-6,
+    timeformat="%5.0e",
+    lfformat="%5.1lf",
     filenames=joinpath(projectpath, "results", "results_random.jld2")
 )
     @assert length(cpualg) == length(gpualg) "Lists of CPU and GPU algorithms must have the same size"
+
+    fmt_time = generate_formatter(timeformat)
+    fmt_lf = generate_formatter(lfformat)
 
     outfile = joinpath(output_path, "table$(suffix).tex")
 
@@ -180,12 +182,12 @@ function table_cpu_gpu(
                 else
                     cputime = Tcpu[1,:time][1]
                     cpuiter = Tcpu[1,:iter][1]
-                    write(tex, " & $(fmt_etex0(cputime)) ($(strip(fmt_lf1(cpuiter))))")
+                    write(tex, " & $(fmt_latex(fmt_time, cputime * timefactor)) ($(strip(fmt_lf(cpuiter))))")
                     if !isempty(Tgpu)
                         gputime = Tgpu[1,:time][1]
                         gpuiter = Tgpu[1,:iter][1]
                         spup = cputime / gputime
-                        write(tex, " & $(fmt_lf1(spup)) ($(strip(fmt_lf1(gpuiter))))")
+                        write(tex, " & $(fmt_lf(spup)) ($(strip(fmt_lf(gpuiter))))")
                     else
                         write(tex, " & --")
                     end
@@ -197,6 +199,74 @@ function table_cpu_gpu(
         if n < min(ns[end], maxn)
             write(tex, "\\hline\n")
         end
+    end
+    write(tex, "\\hline\n\\end{tabular*}")
+
+    close(tex)
+    println("File $(outfile) was generated.")
+end
+
+# LaTeX table CQK vs CMS
+# Times are expressed in nanoseconds. The "timefactor" parameter can be used
+# to adjust the unit: 1e-3 (microseconds), 1e-6 (milliseconds), 1e-9 (seconds)
+function table_cqk_cms(
+    inst,
+    cqkalg,
+    cmsalg;
+    minn = 0,
+    maxn = Inf,
+    suffix="",
+    timefactor=1e-6,
+    timeformat="%8.2e",
+    lfformat="%8.4lf",
+    filenames=joinpath(projectpath, "results", "results_random.jld2")
+)
+    fmt_time = generate_formatter(timeformat)
+    fmt_lf = generate_formatter(lfformat)
+
+    outfile = joinpath(output_path, "table_cqk_cms$(suffix).tex")
+
+    res = read_results(filenames)
+    res_tmp = filter_results(res; instance=inst[1])
+    ns = sort(Int64.(unique(res_tmp[:,:n])))
+
+    tex = open(outfile, "w")
+    write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}l$(repeat("ll", length(inst)))@{\\extracolsep\\fill}}\n")
+    write(tex, "\\hline\n")
+    for p in inst
+        write(tex, " & \\multicolumn{2}{l}{$(instancelabels[p])}")
+    end
+    write(tex, "\\\\\n")
+    write(tex, "\$n\$ $(repeat(" & $(alglabels[cmsalg]) time & $(alglabels[cqkalg])", length(inst)))\\\\\n")
+    write(tex, "\\hline\n")
+    for n in ns
+        if (n < minn) || (n > maxn)
+            continue
+        end
+        write(tex, "\$10^{$(ceil(Int64, log10(n)))}\$")
+
+        for p in inst
+            Tcqk = filter_results(
+                res; minn=n, maxn=n, minthreads=1, maxthreads=1,
+                algorithm=cqkalg, instance=p
+            )
+            Tcms = filter_results(
+                res; minn=n, maxn=n, minthreads=1, maxthreads=1,
+                algorithm=cmsalg, instance=p
+            )
+            if isempty(Tcqk) || isempty(Tcms)
+                continue
+            else
+                cqktime = Tcqk[1,:time][1]
+                cqkiter = Tcqk[1,:iter][1]
+                cmstime = Tcms[1,:time][1]
+                cmsiter = Tcms[1,:iter][1]
+                spup = cqktime / cmstime
+                write(tex, " & $(fmt_latex(fmt_time, cmstime * timefactor)) & $(fmt_lf(spup))")
+            end
+        end
+
+        write(tex, " \\\\\n")
     end
     write(tex, "\\hline\n\\end{tabular*}")
 
@@ -556,6 +626,17 @@ function generate_all()
         "cqk (GPU, FP64)",      # GPU algorithm
         suffix="_FP64",
         minn = 10^4,
+        maxn = 10^9
+    )
+
+    ###################
+    # Random, Table CQK vs CMS
+    ###################
+    table_cqk_cms(
+        ["uncorr";"weakly corr";"corr"],
+        "cqk (CPU, FP64)",      # our algorithm
+        "cqn",                  # CMS algorithm
+        minn = 10^3,
         maxn = 10^9
     )
 
