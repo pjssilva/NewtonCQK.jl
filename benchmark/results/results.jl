@@ -22,11 +22,11 @@ fmt_latex(fmt,v) = replace(fmt(v), "e+" => "e\$+\$", "e-" => "e\$-\$")
 
 # Algorithm legend labels
 alglabels = Dict(
-    "cqk (CPU, FP64)"       => "Algorithm 1",
+    "cqk (CPU, FP64)"       => latexstring("\$\\texttt{NewtonCQK.jl}\$"),
     "cqn"                   => "CMS",
-    "cqk (GPU, FP64)"       => "Algorithm 1 (GPU)",
-    "cqk (CPU, FP32)"       => "Algorithm 1 (dense solution)",
-    "cqk (GPU, FP32)"       => "Algorithm 1 (GPU)",
+    "cqk (GPU, FP64)"       => latexstring("\$\\texttt{NewtonCQK.jl}\$ (GPU)"),
+    "cqk (CPU, FP32)"       => latexstring("\$\\texttt{NewtonCQK.jl}\$ (dense solution)"),
+    "cqk (GPU, FP32)"       => latexstring("\$\\texttt{NewtonCQK.jl}\$ (GPU)"),
     "simplex (CPU, FP64)"   => "Algorithm 4 (dense solution)",
     "sp simplex (CPU, FP64)"=> "Algorithm 4 (sparse solution)",
     "Condat C"              => "Condat (Algorithm 3)",
@@ -40,11 +40,11 @@ alglabels = Dict(
     "l1ball (GPU, FP64)"    => "Specialized Algorithm 1 (GPU)",
     "l1ball (CPU, FP32)"    => "Specialized Algorithm 1 (dense)",
     "l1ball (GPU, FP32)"    => "Specialized Algorithm 1 (GPU)",
-    "l1ball (bp)"           => "Our algorithm",
-    "l1ball (bp) x0"        => "Our algorithm (warm start)",
-    "cqk (SVM)"             => "Algorithm 1",
-    "cqk (SVM) x0"          => "Algorithm 1 (warm start)",
-    "cqn (SVM)"             => "CMS algorithm"
+    "l1ball (bp)"           => latexstring("\\texttt{NewtonCQK.jl}"),
+    "l1ball (bp) x0"        => latexstring("\\texttt{NewtonCQK.jl} (warm start)"),
+    "cqk (SVM)"             => latexstring("\$\\texttt{NewtonCQK.jl}\$"),
+    "cqk (SVM) x0"          => latexstring("\$\\texttt{NewtonCQK.jl}\$ (warm start)"),
+    "cqn (SVM)"             => "CMS"
 )
 
 #########################
@@ -64,7 +64,10 @@ simplex_sizes = [1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_0
 instancelabels = Dict(
     "uncorr"        => "Uncorrelated",
     "weakly corr"   => "Weakly correlated",
-    "corr"          => "Correlated"
+    "corr"          => "Correlated",
+    "Random 1"      => "Random 1",
+    "Random 2"      => "Random 2",
+    "Random 3"      => "Random 3"
 )
 
 # read results in the JLD2 file
@@ -486,7 +489,7 @@ function spg_plots(
     # initialize plot
     fig = plot(; title=title,
         xlabel="SPG iteration",
-        ylabel=nfixed ? "Fixed variables (%)" : relative ? "relative speedup" : "",
+        ylabel=nfixed ? "Fixed variables (%)" : relative ? (length(threads) == 1 ? "relative performance" : "relative speedup") : "",
         legend=nfixed ? false : legpos,
         fontfamily="Computer Modern",
         xticks=(xticks, xtickstext)
@@ -604,8 +607,7 @@ function generate_all()
             ["simplex (CPU, FP64)", "sp simplex (CPU, FP64)", "P Condat (simplex)"];
             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
             # include 1 thread, as the comparison is with Condat's C code
-            minthreads=1,
-            #algcuda="simplex (GPU, FP64)"
+            minthreads=1
         )
     end
 
@@ -614,18 +616,18 @@ function generate_all()
     ###################
     table_cpu_gpu(
         ["uncorr";"weakly corr";"corr"],
-        "cqk (CPU, FP32)",      # CPU algorithm
-        "cqk (GPU, FP32)",      # GPU algorithm
-        suffix="_FP32",
+        "cqk (CPU, FP64)",      # CPU algorithm
+        "cqk (GPU, FP64)",      # GPU algorithm
+        suffix="_CPUvsGPU_cqk_FP64",
         minn = 10^4,
         maxn = 10^9
     )
     table_cpu_gpu(
-        ["uncorr";"weakly corr";"corr"],
-        "cqk (CPU, FP64)",      # CPU algorithm
-        "cqk (GPU, FP64)",      # GPU algorithm
-        suffix="_FP64",
-        minn = 10^4,
+        ["Random 1";"Random 2";"Random 3"],
+        "simplex (CPU, FP64)",      # CPU algorithm
+        "simplex (GPU, FP64)",      # GPU algorithm
+        suffix="_CPUvsGPU_simplex_FP64",
+        minn = 10^3,
         maxn = 10^9
     )
 
@@ -641,12 +643,12 @@ function generate_all()
     )
 
     ###################
-    # Basis pursuit
+    # Basis pursuit denoising
     ###################
     for n in [1;11]
-        # Speedup, iterations and #fixed vars per thread
-        for t in [1;2;4;8;16;24;48]
-            for m in [:time; :iter; :nfixed]
+        # Relative performance, iterations and #fixed vars per thread
+        for t in [1]#;2;4;8;16;24;48]  # uncomment to generate figures for multiple threads
+            for m in [:time; :nfixed]#; :iter]  # measures
                 if m == :nfixed
                     title = "SC$(n)"
                 elseif m == :time
@@ -675,7 +677,7 @@ function generate_all()
             ["l1ball (bp) x0"],
             "SClog$(n).mat",
             miniter=3,
-            title="Our algorithm on SC$(n)",
+            title=latexstring("\$\\texttt{NewtonCQK.jl}\$ on SC$(n)"),
             threads=[1;2;4;8;16;24;48],
             measure=:time,
             filename=joinpath(projectpath, "results", "results_basis_pursuit.jld2"),
@@ -689,9 +691,9 @@ function generate_all()
     for p in ["mnist_784"; "cdc_diabetes"]
         problem = (p == "mnist_784") ? "MNIST" : "cdc_diabetes"
 
-        # Speedup, iterations and #fixed vars per thread
-        for t in [1;2;4;8;16;24;48]
-            for m in [:time; :iter; :nfixed]
+        # Relative performance, iterations and #fixed vars per thread
+        for t in [1]#;2;4;8;16;24;48]  # uncomment to generate figures for multiple threads
+            for m in [:time; :nfixed]#; :iter]  # measures
                 if m == :nfixed
                     title = problem
                 elseif m == :time
@@ -720,7 +722,7 @@ function generate_all()
             ["cqk (SVM) x0"],
             p,
             miniter=3,
-            title="Algorithm 1 on $(problem)",
+            title=latexstring("\$\\texttt{NewtonCQK.jl}\$ on $(problem)"),
             threads=[1;2;4;8;16;24;48],
             measure=:time,
             filename=joinpath(projectpath, "results", "results_svm.jld2"),
