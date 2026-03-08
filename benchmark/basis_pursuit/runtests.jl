@@ -173,6 +173,63 @@ function executed(results, instance, nthreads)
     return false
 end
 
+function tune_r(instance, A, b; tol = 1e-2)
+    # initial r (we assume that SPG converges)
+    if instance == "SClog11.mat"
+        r = 35
+    elseif instance == "SClog1.mat"
+        r = 6700
+    else
+        r = size(A,2)/10
+    end
+    x, _, _ = solve(
+        instance, A, b, 1;
+        r = r,
+        verbose = -1
+    )
+    res = norm(A*x - b)
+    @printf("r = %d, res = %.6lf\n", r, res)
+    if res > tol
+        # res > tol => r must increase
+        delta = 1
+    else
+        # res < tol => r must decrease
+        delta = -1
+    end
+
+    # adjust r
+    while (true)
+        r += delta
+        oldres = res
+        x, _, flag = solve(
+            instance, A, b, 1;
+            r = r,
+            verbose = -1
+        )
+        if flag != :solved
+            # if SPG fails, we take the last valid r
+            r -= delta
+            break
+        end
+        res = norm(A*x - b)
+        if signbit(res - tol) != signbit(oldres - tol)
+            # residual value crossed tol, stop!
+            if res > tol
+                # if the last r makes the residual to be greater than tol,
+                # go back to the previous one
+                r -= delta
+            end
+            break
+        end
+        @printf("r = %d, res = %.6lf\n", r, res)
+    end
+
+    # save r
+    jldsave(joinpath(projectpath, "basis_pursuit/$(instance)_r.jld2"); r)
+
+    return r
+end
+
 # All basis pursuit tests
 function alltests(cont)
     nthreads = Threads.nthreads()
@@ -215,12 +272,14 @@ function alltests(cont)
                 continue
             end
 
-            if mat == "SClog11.mat"
-                r = 35
-            elseif mat == "SClog1.mat"
-                r = 6700
+            # read/tune r (executed in single-threaded mode)
+            r = jld2_read("r", joinpath(projectpath, "basis_pursuit/$(mat)_r.jld2"))
+            if isnothing(r)
+                println("Tuning r...")
+                r = tune_r(mat, A, b)
+                @printf("r = %d\n", r)
             else
-                r = size(A,2)/10
+                @printf("r = %d (read from file)\n", r)
             end
 
             # count iterations, no benchmark
@@ -232,7 +291,6 @@ function alltests(cont)
 
             nonzeros = count(x .!= 0.0)
             @printf("# nonzeros = %d (%.3lf %%)\n", nonzeros, 100 * nonzeros/size(A,2))
-
             if flag != :solved
                 println("SPG fails.")
                 println('-'^98)

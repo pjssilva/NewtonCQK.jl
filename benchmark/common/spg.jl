@@ -132,8 +132,10 @@ function spg(n, f, g!, proj!;
         end
     end
 
-    println("\nSPG exit status: $(flag)")
-    @printf("\nSummary: iters = %d    |proj g| = %12.8e    f = %12.8e\n", iter, gsupn, fx)
+    if verbose >= 0
+        println("\nSPG exit status: $(flag)")
+        @printf("\nSummary: iters = %d    |proj g| = %12.8e    f = %12.8e\n", iter, gsupn, fx)
+    end
 
     return x, iter, flag
 end
