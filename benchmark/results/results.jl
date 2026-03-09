@@ -40,8 +40,8 @@ alglabels = Dict(
     "l1ball (GPU, FP64)"    => "Specialized Algorithm 1 (GPU)",
     "l1ball (CPU, FP32)"    => "Specialized Algorithm 1 (dense)",
     "l1ball (GPU, FP32)"    => "Specialized Algorithm 1 (GPU)",
-    "l1ball (bp)"           => latexstring("\\texttt{NewtonCQK.jl}"),
-    "l1ball (bp) x0"        => latexstring("\\texttt{NewtonCQK.jl} (warm start)"),
+    "l1ball (bp)"           => latexstring("\$\\texttt{NewtonCQK.jl}\$"),
+    "l1ball (bp) x0"        => latexstring("\$\\texttt{NewtonCQK.jl}\$ (warm start)"),
     "cqk (SVM)"             => latexstring("\$\\texttt{NewtonCQK.jl}\$"),
     "cqk (SVM) x0"          => latexstring("\$\\texttt{NewtonCQK.jl}\$ (warm start)"),
     "cqn (SVM)"             => "CMS"
@@ -489,7 +489,7 @@ function spg_plots(
     # initialize plot
     fig = plot(; title=title,
         xlabel="SPG iteration",
-        ylabel=nfixed ? "Fixed variables (%)" : relative ? (length(threads) == 1 ? "relative performance" : "relative speedup") : "",
+        ylabel=nfixed ? "Non-fixed variables (%)" : relative ? (length(threads) == 1 ? "relative performance" : "relative speedup") : "",
         legend=nfixed ? false : legpos,
         fontfamily="Computer Modern",
         xticks=(xticks, xtickstext)
