@@ -9,6 +9,8 @@ It is authored by Paulo J. S. Silva and Leonardo D. Secchin.
 
 ## Installation and use
 
+To install the package, run the following command in Julia:
+
 `]add https://github.com/pjssilva/NewtonCQK.jl`
 
 The package solves problems of the form
