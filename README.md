@@ -12,9 +12,9 @@ It is authored by Paulo J. S. Silva and Leonardo D. Secchin.
 `]add https://github.com/pjssilva/NewtonCQK.jl`
 
 The package solves problems of the form
-$$
-\min_x \frac{1}{2}x^tDx - a^t \quad s.t. \quad b^tx = r, \ l \leq x \leq u,
-$$
+
+$$\min_x \frac{1}{2}x^tDx - a^t \quad s.t. \quad b^tx = r, \ l \leq x \leq u,$$
+
 where $D$ is a positive diagonal matrix, $b$ is a vector with positive
 entries, and $l\leq u$ (some bounds may be $\pm \infty$). Problems are stored
 in the `CQKProblem` structure; type `?CQKProblem` for details. For solver
