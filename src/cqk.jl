@@ -9,9 +9,10 @@
 """
     CQKProblem{T<:AbstractFloat,V<:AbstractVector{T}}
 
-A struct representing a continuous quadratic knapsack problem.
-
-min_x 1/2*x'*D*x - a'*t  s.t.  b'*x = r,  l <= x <= u
+A struct representing a continuous quadratic knapsack problem
+```
+min 0.5*x'*D*x - a'*t  s.t.  b'*x = r,  l <= x <= u
+```
 
 # Fields
 - `d::V`: The diagonal elements of the positive definite matrix `D`.

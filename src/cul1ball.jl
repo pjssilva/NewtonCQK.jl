@@ -8,7 +8,7 @@ function cul1ball_solution_step(y::T, λ::T) where {T<:AbstractFloat}
 end
 
 """
-    iter, flag = cul1ball_proj!(sol, y; r=1.0, maxiters=100)
+    iter, flag = l1ball_proj!(sol, y; r=1.0, maxiters=100)
 
 CUDA version of `l1ball_proj!`. `sol` and `x` must be `CuVector`s. The
 projection is returned as the `CuVector` `sol`.
@@ -36,7 +36,7 @@ function l1ball_proj!(
 end
 
 """
-    iter, flag = cul1ball_proj!(y; r=1.0, maxiters=100)
+    iter, flag = l1ball_proj!(y; r=1.0, maxiters=100)
 
 replaces `y` by the projection.
 """
@@ -47,7 +47,7 @@ function l1ball_proj!(
 end
 
 """
-    sol, iter, flag = cul1ball_proj!(y; r=1.0, maxiters=100)
+    sol, iter, flag = l1ball_proj!(y; r=1.0, maxiters=100)
 
 CUDA version of `l1ball_proj`. `y` must be a `CuVector`. The projection
 `sol` is also a `CuVector`.
