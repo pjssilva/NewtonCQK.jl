@@ -17,12 +17,12 @@ $$\min_x \frac{1}{2}x^tDx - a^t \quad \text{s.t.} \quad b^tx = r, \ l \leq x \le
 
 where $D$ is a positive diagonal matrix, $b$ is a vector with positive
 entries, and $l\leq u$ (some bounds may be $\pm \infty$). Problems are stored
-in the `CQKProblem` structure; type `?CQKProblem` for details. For solver
-instructions, type `?cqk!` and `?cqk`.
+in the `CQKProblem` structure; type `?CQKProblem` for details. For
+instructions on using the solver, type `?cqk!` or `?cqk`.
 
-To project a vector onto a simplex, see `?simplex_proj!` and `?simplex_proj`.
+To project a vector onto a simplex, see `?simplex_proj!` or `?simplex_proj`.
 These functions return solutions as dense vectors. For sparse vectors, use
-`spsimplex_proj`. There are similar functions for projecting onto an
+`spsimplex_proj`. Similar functions are available for projection onto an
 $\ell_1$-ball: `l1ball_proj!`, `l1ball_proj` and `spl1ball_proj`. All these
 functions receive the vector to be projected and $r$ as input parameters.
 
