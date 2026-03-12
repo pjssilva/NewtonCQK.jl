@@ -100,7 +100,7 @@ sol, iter, flag = simplex_proj(y, nchunks=4)   # using 4 threads
 
 # Pre-allocating workspace
 sol = similar(y)
-chunks = initialize_chunks(10000; nchunks=Threads.nthreads())   # using all threads available
+chunks = initialize_chunks(10000; nchunks=Threads.nthreads())   # using all available threads
 iter, flag = simplex_proj!(sol, y, chunks=chunks)
 ```
 
