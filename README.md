@@ -32,6 +32,93 @@ Input vectors, including those in the `CQKProblem` structure, can be of
 type `CuVector`, provided by the `CUDA.jl` package. In this case, the solvers
 run on the GPU.
 
+## Examples
+
+Solving a CQK problem:
+```
+using NewtonCQK
+
+n = 10^5
+d = ones(n)
+a = rand(n)
+b = rand(n)
+r = 10.0
+l = zeros(n)
+u = ones(n)
+
+P = CQKProblem(d, a, b, r, l, u)
+
+sol, iter, flag = cqk(P)
+
+# Providing an initial guess
+x0 = [(rand() .< 0.95) ? 0.0 : 1.0 for i = 1:n]
+sol, iter, flag = cqk(P, x0 = x0)
+
+# Pre-allocating the solution vector
+sol = similar(P.a)
+iter, flag = cqk!(sol, P)
+```
+
+Solving a CQK problem on the GPU:
+```
+using NewtonCQK
+using CUDA
+
+T = Float32
+
+n = 10^7
+d = CuVector(ones(T, n))
+a = CuVector(rand(T, n))
+b = CuVector(rand(T, n))
+r = T(10.0)
+l = CuVector(zeros(T, n))
+u = CuVector(ones(T, n))
+
+P = CQKProblem(d, a, b, r, l, u)
+sol, iter, flag = cqk(P)
+```
+
+Projecting a vector onto a simplex:
+```
+using NewtonCQK
+
+y = rand(10000)
+sol, iter, flag = simplex_proj(y)   # unit simplex
+sol, iter, flag = simplex_proj(y, r = 2.0)   # 2-simplex
+
+# Pre-allocating the solution vector
+sol = similar(y)
+iter, flag = simplex_proj!(sol, y)
+```
+
+Projecting a vector onto a simplex in parallel:
+```
+using NewtonCQK
+
+y = rand(10000)
+sol, iter, flag = simplex_proj(y, nchunks=4)   # using 4 threads
+
+# Pre-allocating workspace
+sol = similar(y)
+chunks = initialize_chunks(10000; nchunks=Threads.nthreads())   # using all threads available
+iter, flag = simplex_proj!(sol, y, chunks=chunks)
+```
+
+Projecting a vector onto a simplex on the GPU:
+```
+using NewtonCQK
+using CUDA
+
+y = rand(10^7)
+cuy = CuVector(y)
+
+# Returning the solution as a new CuVector
+sol, iter, flag = simplex_proj(cuy)
+
+# Returning the solution in cuy itself
+iter, flag = simplex_proj!(cuy)
+```
+
 
 ## Funding
 
