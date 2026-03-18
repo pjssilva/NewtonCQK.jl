@@ -133,7 +133,7 @@ for Scientific and Technological Development (CNPq) (grants 302520/2025-2 and
 ## How to cite
 
 If you use this code in your publications, please cite us, see the
-`CITATIONS.bib` in the repository. The 2016 paper is where the Newtow method
-for CQK is instroduced. The 2026 arXiv preprint describes the details of this
+`CITATIONS.bib` in the repository. The 2016 paper is where the Newton method
+for CQK is introduced. The 2026 arXiv preprint describes the details of this
 implementation with numerous benchmarks. 
 
