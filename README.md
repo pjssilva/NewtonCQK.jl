@@ -11,7 +11,7 @@ It is authored by Paulo J. S. Silva and Leonardo D. Secchin.
 
 To install the package, run the following command in Julia:
 
-`]add https://github.com/pjssilva/NewtonCQK.jl`
+`pkg> add https://github.com/pjssilva/NewtonCQK.jl`
 
 We plan to add this package to the Julia Package Registry soon. 
 
