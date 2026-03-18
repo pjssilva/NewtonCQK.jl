@@ -17,7 +17,7 @@ We plan to add this package to the Julia Package Registry soon.
 
 The package solves problems of the form
 
-$$\min_x \frac{1}{2}x^tDx - a^t \quad \text{s.t.} \quad b^tx = r, \ l \leq x \leq u,$$
+$$\min_x \frac{1}{2}x^tDx - a^tx \quad \text{s.t.} \quad b^tx = r, \ l \leq x \leq u,$$
 
 where $D$ is a positive diagonal matrix, $b$ is a vector with positive
 entries, and $l\leq u$ (some bounds may be $\pm \infty$). Problems are stored
