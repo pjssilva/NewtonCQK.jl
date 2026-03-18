@@ -13,6 +13,8 @@ To install the package, run the following command in Julia:
 
 `]add https://github.com/pjssilva/NewtonCQK.jl`
 
+We plan to add this package to the Julia Package Registry soon. 
+
 The package solves problems of the form
 
 $$\min_x \frac{1}{2}x^tDx - a^t \quad \text{s.t.} \quad b^tx = r, \ l \leq x \leq u,$$
