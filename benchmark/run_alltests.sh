@@ -7,6 +7,11 @@ juliacmd="julia-1.10"
 # Threads
 threads="1 2 4 8 16 24 48"
 
+# Paths of commercial solvers
+hexaly_path="/opt/hexaly_14_5"
+gurobi_path="~/gurobi1302/linux64"
+cplex_path="/opt/ibm/ILOG/CPLEX_Studio2211/cplex"
+
 # Compile third-party software
 echo "Compiling third-party software..."
 (cd third_party/condat/ && make)
