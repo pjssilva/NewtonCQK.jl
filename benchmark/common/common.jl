@@ -41,27 +41,17 @@ include(
 )
 include(
     joinpath(
+        "../third_party", "cplex", "cplex_interface.jl"
+    )
+)
+include(
+    joinpath(
         "../third_party", "gurobi", "gurobi_interface.jl"
     )
 )
 include(
     joinpath(
         "../third_party", "hexaly", "hexaly_interface.jl"
-    )
-)
-include(
-    joinpath(
-        "../third_party", "highs_interface.jl"
-    )
-)
-include(
-    joinpath(
-        "../third_party", "cplex", "cplex_interface.jl"
-    )
-)
-include(
-    joinpath(
-        "../third_party", "ripqp_interface.jl"
     )
 )
 
