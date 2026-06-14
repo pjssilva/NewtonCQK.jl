@@ -130,6 +130,14 @@ function b_cms_cqn(P, nthreads)
     end
 end
 
+# Benchmark for commercial software (CPLEX, GUROBI, Hexaly)
+function b_commercial(P, alg, nthreads)
+    sol = similar(P.a)
+    b = @benchmarkable $alg($sol, $P; nthreads=nthreads)
+    time = estimatetime(b)
+    return time
+end
+
 # Benchmark of our Newton algorithms
 function ref_obj(P::CQKProblem)
     return P.a

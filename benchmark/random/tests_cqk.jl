@@ -69,7 +69,7 @@ end
 ##############
 CQK_METHODS = METHOD[]
 
-if USECUDA < 32 
+if USECUDA < 32
     push!(
         CQK_METHODS,
         METHOD(
@@ -93,9 +93,55 @@ if USECUDA < 32
             (P, nthreads) -> reldiff_sol(P, cqk, cms_cqn)
         )
     )
-end 
 
-if USECUDA > 32
+    if isfile(
+        joinpath(projectpath, "../third_party", "cplex", "cplex_cqk.so")
+    )
+        push!(
+            CQK_METHODS,
+            METHOD(
+                "cplex",
+                identity,
+                (P, nthreads) -> b_commercial(P, cplex_cqk!, nthreads),
+                (P, nthreads) -> cplex_cqk(P)[2:3],
+                (P, nthreads) -> cqk_infeas(P, cplex_cqk(P)[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, cplex_cqk)
+            )
+        )
+    end
+
+    if isfile(
+        joinpath(projectpath, "../third_party", "gurobi", "gurobi_cqk.so")
+    )
+        push!(
+            CQK_METHODS,
+            METHOD(
+                "gurobi",
+                identity,
+                (P, nthreads) -> b_commercial(P, gurobi_cqk!, nthreads),
+                (P, nthreads) -> gurobi_cqk(P)[2:3],
+                (P, nthreads) -> cqk_infeas(P, gurobi_cqk(P)[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, gurobi_cqk)
+            )
+        )
+    end
+
+    if isfile(
+        joinpath(projectpath, "../third_party", "hexaly", "hexaly_cqk.so")
+        )
+        push!(
+            CQK_METHODS,
+            METHOD(
+                "hexaly",
+                identity,
+                (P, nthreads) -> b_commercial(P, hexaly_cqk!, nthreads),
+                (P, nthreads) -> hexaly_cqk(P)[2:3],
+                (P, nthreads) -> cqk_infeas(P, hexaly_cqk(P)[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, hexaly_cqk)
+                )
+            )
+    end
+else
     push!(
         CQK_METHODS,
         METHOD(

@@ -6,7 +6,7 @@
 using namespace hexaly;
 using namespace std;
 
-int hexaly_cqk(int n, double *__restrict d, double *__restrict a,
+extern "C" int hexaly_cqk(int n, double *__restrict d, double *__restrict a,
     double *__restrict b, double r, double *__restrict low, double *__restrict up,
     double *x)
 {
@@ -18,7 +18,7 @@ int hexaly_cqk(int n, double *__restrict d, double *__restrict a,
         HxModel model = optimizer.getModel();
 
         // variables
-        HxExpression* y = malloc(n * sizeof(HxExpression));
+        HxExpression* y = (HxExpression*) malloc(n * sizeof(HxExpression));
         for (int i = 0; i < n; ++i)
             y[i] = model.floatVar(low[i], up[i]);
 

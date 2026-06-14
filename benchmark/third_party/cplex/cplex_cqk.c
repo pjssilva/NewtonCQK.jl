@@ -3,7 +3,7 @@
 #include <ilcplex/cplex.h>
 #include <stdlib.h>
 
-int main (int n, double *restrict d, double *restrict a,
+int cplex_cqk(int n, double *restrict d, double *restrict a,
     double *restrict b, double r, double *restrict low, double *restrict up,
     double *x)
 {
@@ -66,10 +66,10 @@ int main (int n, double *restrict d, double *restrict a,
 
    if (CPXgetstat(env, lp) == CPX_STAT_OPTIMAL)
    {
-      error = CPXgetx (env, lp, x, 0, n);
+      error = CPXgetx (env, lp, x, 0, n-1);
       if (error) goto TERMINATE;
 
-      status = CPXgetitcnt (env, lp);
+      status = CPXgetbaritcnt (env, lp);
    }
 
 TERMINATE:
