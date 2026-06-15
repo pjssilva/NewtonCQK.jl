@@ -6,7 +6,7 @@
 
 int gurobi_cqk(int n, double *restrict d, double *restrict a,
     double *restrict b, double r, double *restrict low, double *restrict up,
-    double *x)
+    double *x, int nthreads)
 {
   GRBenv   *env   = NULL;
   GRBmodel *model = NULL;
@@ -24,24 +24,26 @@ int gurobi_cqk(int n, double *restrict d, double *restrict a,
 
   /* Create environment */
 
-  error = GRBloadenv(&env, NULL);
+  // error = GRBloadenv(&env, NULL);
+  error = GRBemptyenv(&env);
   if (error) goto QUIT;
 
   /* Parameters */
 
   error = GRBsetintparam(env, "ScaleFlag", 0);
   if (error) goto QUIT;
-  // error = GRBsetintparam(env, "Presolve", 0);
-  // if (error) goto QUIT;
-  error = GRBsetintparam(env, "Threads", 1);
+  error = GRBsetintparam(env, "Presolve", 0);
+  if (error) goto QUIT;
+  error = GRBsetintparam(env, "Threads", nthreads);
   if (error) goto QUIT;
   error = GRBsetintparam(env, "OutputFlag", 0);
   if (error) goto QUIT;
-
-  /* Tolerances */
-
   // GRBsetdblparam(env, "BarConvTol", 1e-8);     // Barrier convergence tolerance (def 1e-8)
   // GRBsetdblparam(env, "FeasibilityTol" 1e-6);  // Primal feasibility tolerance (def 1e-6)
+
+  /* Start environment */
+  error = GRBstartenv(env);
+  if (error) goto QUIT;
 
   /* Create the model */
 

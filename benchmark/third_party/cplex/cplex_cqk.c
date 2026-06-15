@@ -5,7 +5,7 @@
 
 int cplex_cqk(int n, double *restrict d, double *restrict a,
     double *restrict b, double r, double *restrict low, double *restrict up,
-    double *x)
+    double *x, int nthreads)
 {
    char     sense[1] = {'E'};
    double   rhs[1] = {r};
@@ -35,7 +35,7 @@ int cplex_cqk(int n, double *restrict d, double *restrict a,
    if (error) goto TERMINATE;
    error = CPXsetintparam(env, CPXPARAM_Preprocessing_Presolve, CPX_OFF);
    if (error) goto TERMINATE;
-   error = CPXsetintparam(env, CPXPARAM_Threads, 1);
+   error = CPXsetintparam(env, CPXPARAM_Threads, nthreads);
    if (error) goto TERMINATE;
 
    /* Create the problem. */
