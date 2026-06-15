@@ -93,6 +93,13 @@ function reldiff_sol(P, cpualg, altalg)
 end
 reldiff_sol(P, alg) = reldiff_sol(P, alg, alg)
 
+function commercial_reldiff_sol(P, cpualg, altalg, method)
+    alt_sol = altalg(P, method=method)[1]
+    cpu_P = GPUtoCPU(P, Float64)
+    cpu_sol = cpualg(cpu_P)[1]
+    return norm(Vector(alt_sol) - cpu_sol) / norm(cpu_sol)
+end
+
 # Benchmark for Parallel Condat
 function b_Pcondat(P, serial_alg, parallel_alg, nthreads)
     if nthreads == 1
@@ -131,9 +138,9 @@ function b_cms_cqn(P, nthreads)
 end
 
 # Benchmark for commercial software (CPLEX, GUROBI, Hexaly)
-function b_commercial(P, alg, nthreads)
+function b_commercial(P, alg, nthreads, method)
     sol = similar(P.a)
-    b = @benchmarkable $alg($sol, $P; nthreads=nthreads)
+    b = @benchmarkable $alg($sol, $P; nthreads=nthreads, method=method)
     time = estimatetime(b)
     return time
 end

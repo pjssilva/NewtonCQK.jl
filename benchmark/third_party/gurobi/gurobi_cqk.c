@@ -6,7 +6,7 @@
 
 int gurobi_cqk(int n, double *restrict d, double *restrict a,
     double *restrict b, double r, double *restrict low, double *restrict up,
-    double *x, int nthreads)
+    double *x, int nthreads, int method, double timelimit)
 {
   GRBenv   *env   = NULL;
   GRBmodel *model = NULL;
@@ -30,6 +30,10 @@ int gurobi_cqk(int n, double *restrict d, double *restrict a,
 
   /* Parameters */
 
+  error = GRBsetintparam(env, "Method", method);
+  if (error) goto QUIT;
+  error = GRBsetdblparam(env, "TimeLimit", timelimit);
+  if (error) goto QUIT;
   error = GRBsetintparam(env, "ScaleFlag", 0);
   if (error) goto QUIT;
   error = GRBsetintparam(env, "Presolve", 0);

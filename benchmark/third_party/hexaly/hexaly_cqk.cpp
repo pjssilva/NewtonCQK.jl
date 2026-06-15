@@ -18,7 +18,7 @@ using namespace std;
 
 extern "C" int hexaly_cqk(int n, double *__restrict d, double *__restrict a,
     double *__restrict b, double r, double *__restrict low, double *__restrict up,
-    double *x, int nthreads)
+    double *x, int nthreads, int timelimit)
 {
     int status = -1;
 
@@ -29,7 +29,7 @@ extern "C" int hexaly_cqk(int n, double *__restrict d, double *__restrict a,
 
         // Set parameters
         optimizer.getParam().setSeed(1);
-        optimizer.getParam().setTimeLimit(10);
+        optimizer.getParam().setTimeLimit(timelimit);
         optimizer.getParam().setVerbosity(0);
         optimizer.getParam().setWarningLevel(0);
         if (nthreads < 4)

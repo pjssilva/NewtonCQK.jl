@@ -44,7 +44,12 @@ alglabels = Dict(
     "l1ball (bp) x0"        => latexstring("\$\\texttt{NewtonCQK.jl}\$ (warm start)"),
     "cqk (SVM)"             => latexstring("\$\\texttt{NewtonCQK.jl}\$"),
     "cqk (SVM) x0"          => latexstring("\$\\texttt{NewtonCQK.jl}\$ (warm start)"),
-    "cqn (SVM)"             => "CMS"
+    "cqn (SVM)"             => "CMS",
+    "cplex (barrier)"       => "CPLEX (barrier)",
+    "cplex (primal simplex)"=> "CPLEX (primal simplex)",
+    "gurobi (barrier)"      => "GUROBI (barrier)",
+    "gurobi (primal simplex)"=> "GUROBI (primal simplex)",
+    "hexaly"                => "Hexaly"
 )
 
 #########################
@@ -54,11 +59,11 @@ alglabels = Dict(
 # Instances names and sizes from tests_cqk.jl and tests_simplex.jl
 # We do not include these files here because to avoid redefine TESTS structure.
 # Also, we are freedom to select a subset of tests here.
-CQK_names = ["uncorr", "weakly corr", "corr"]
-CQK_sizes = [1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000]
+CQK_names = ["uncorr"; "weakly corr"; "corr"]
+CQK_sizes = [1_000; 10_000; 100_000; 1_000_000; 10_000_000; 100_000_000; 1_000_000_000]
 
-simplex_names = ["Random 1", "Random 2", "Random 3"]
-simplex_sizes = [1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000]
+simplex_names = ["Random 1"; "Random 2"; "Random 3"]
+simplex_sizes = [1_000; 10_000; 100_000; 1_000_000; 10_000_000; 100_000_000; 1_000_000_000]
 
 # Instance legend labels
 instancelabels = Dict(
@@ -209,13 +214,13 @@ function table_cpu_gpu(
     println("File $(outfile) was generated.")
 end
 
-# LaTeX table CQK vs CMS
+# LaTeX table CQK vs other solvers
 # Times are expressed in nanoseconds. The "timefactor" parameter can be used
 # to adjust the unit: 1e-3 (microseconds), 1e-6 (milliseconds), 1e-9 (seconds)
-function table_cqk_cms(
+function table_cqk_other(
     inst,
     cqkalg,
-    cmsalg;
+    altalg;
     minn = 0,
     maxn = Inf,
     suffix="",
@@ -227,7 +232,7 @@ function table_cqk_cms(
     fmt_time = generate_formatter(timeformat)
     fmt_lf = generate_formatter(lfformat)
 
-    outfile = joinpath(output_path, "table_cqk_cms$(suffix).tex")
+    outfile = joinpath(output_path, "table_cqk$(suffix).tex")
 
     res = read_results(filenames)
     res_tmp = filter_results(res; instance=inst[1])
@@ -240,7 +245,7 @@ function table_cqk_cms(
         write(tex, " & \\multicolumn{2}{l}{$(instancelabels[p])}")
     end
     write(tex, "\\\\\n")
-    write(tex, "\$n\$ $(repeat(" & $(alglabels[cmsalg]) time & $(alglabels[cqkalg])", length(inst)))\\\\\n")
+    write(tex, "\$n\$ $(repeat(" & $(alglabels[altalg]) time & $(alglabels[cqkalg])", length(inst)))\\\\\n")
     write(tex, "\\hline\n")
     for n in ns
         if (n < minn) || (n > maxn)
@@ -253,19 +258,19 @@ function table_cqk_cms(
                 res; minn=n, maxn=n, minthreads=1, maxthreads=1,
                 algorithm=cqkalg, instance=p
             )
-            Tcms = filter_results(
+            Talt = filter_results(
                 res; minn=n, maxn=n, minthreads=1, maxthreads=1,
-                algorithm=cmsalg, instance=p
+                algorithm=altalg, instance=p
             )
-            if isempty(Tcqk) || isempty(Tcms)
+            if isempty(Tcqk) || isempty(Talt)
                 continue
             else
                 cqktime = Tcqk[1,:time][1]
                 cqkiter = Tcqk[1,:iter][1]
-                cmstime = Tcms[1,:time][1]
-                cmsiter = Tcms[1,:iter][1]
-                spup = cqktime / cmstime
-                write(tex, " & $(fmt_latex(fmt_time, cmstime * timefactor)) & $(fmt_lf(spup))")
+                alttime = Talt[1,:time][1]
+                altiter = Talt[1,:iter][1]
+                spup = cqktime / alttime
+                write(tex, " & $(fmt_latex(fmt_time, alttime * timefactor)) & $(fmt_lf(spup))")
             end
         end
 
@@ -286,6 +291,7 @@ function plot_speedup(
     basealg,
     alg;
     title="",
+    suffix="",
     legpos=:best,
     minthreads=2,
     plot_basealg=true,
@@ -300,9 +306,9 @@ function plot_speedup(
     @assert (length(alg) > 1) || (length(inst) > 1) "alg or inst must be length > 1"
 
     if length(alg) > 1
-        outfile = joinpath(output_path, "speedup_$(replace(inst[1], " " => "_"))_$(n).pdf")
+        outfile = joinpath(output_path, "speedup_$(replace(inst[1], " " => "_"))_$(n)$(suffix).pdf")
     else
-        outfile = joinpath(output_path, "speedup_$(replace(alg[1], " " => "_"))_$(n).pdf")
+        outfile = joinpath(output_path, "speedup_$(replace(alg[1], " " => "_"))_$(n)$(suffix).pdf")
     end
     res = read_results(filenames)
 
@@ -595,7 +601,31 @@ function generate_all()
     end
 
     ###################
-    # Random, Speedup Simplex
+    # Random, Speedup of commercial solvers relative to CQK
+    ###################
+    base = "cqk (CPU, FP64)"    # base is CQK in single thread mode
+    for n in CQK_sizes, p in CQK_names
+        ptext = replace(instancelabels[p]," " => "\\ ")
+        plot_speedup(
+            [p],
+            n,
+            base,
+            [
+                "cqk (CPU, FP64)";
+                "cplex (barrier)";
+                "cplex (primal simplex)";
+                "gurobi (barrier)";
+                "gurobi (primal simplex)";
+                "hexaly"
+            ],
+            title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
+            suffix="_$(p)",
+            plot_basealg=false
+        )
+    end
+
+    ###################
+    # Random, Speedup of algorithms for simplex
     ###################
     base = "Condat C"
     for n in simplex_sizes, p in simplex_names
@@ -604,7 +634,7 @@ function generate_all()
             [p],
             n,
             base,
-            ["simplex (CPU, FP64)", "sp simplex (CPU, FP64)", "P Condat (simplex)"];
+            ["simplex (CPU, FP64)"; "sp simplex (CPU, FP64)"; "P Condat (simplex)"];
             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
             # include 1 thread, as the comparison is with Condat's C code
             minthreads=1
@@ -615,7 +645,7 @@ function generate_all()
     # Random, Tables CPU vs GPU
     ###################
     table_cpu_gpu(
-        ["uncorr";"weakly corr";"corr"],
+        CQK_names,
         "cqk (CPU, FP64)",      # CPU algorithm
         "cqk (GPU, FP64)",      # GPU algorithm
         suffix="_CPUvsGPU_cqk_FP64",
@@ -623,7 +653,7 @@ function generate_all()
         maxn = 10^9
     )
     table_cpu_gpu(
-        ["Random 1";"Random 2";"Random 3"],
+        CQK_names,
         "simplex (CPU, FP64)",      # CPU algorithm
         "simplex (GPU, FP64)",      # GPU algorithm
         suffix="_CPUvsGPU_simplex_FP64",
@@ -634,13 +664,32 @@ function generate_all()
     ###################
     # Random, Table CQK vs CMS
     ###################
-    table_cqk_cms(
-        ["uncorr";"weakly corr";"corr"],
+    table_cqk_other(
+        CQK_names,
         "cqk (CPU, FP64)",      # our algorithm
         "cqn",                  # CMS algorithm
         minn = 10^3,
         maxn = 10^9
     )
+
+    ###################
+    # Random, Table CQK vs commercial solvers (1 thread)
+    ###################
+    for alg in [
+        "cplex (barrier)";
+        "cplex (primal simplex)";
+        "gurobi (barrier)";
+        "gurobi (primal simplex)";
+        "hexaly"
+        ]
+        table_cqk_other(
+            CQK_names,
+            "cqk (CPU, FP64)",      # our algorithm
+            alg,
+            minn = 10^3,
+            maxn = 10^9
+        )
+    end
 
     ###################
     # Basis pursuit denoising

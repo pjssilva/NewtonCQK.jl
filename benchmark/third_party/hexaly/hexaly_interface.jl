@@ -2,7 +2,9 @@ function hexaly_cqk!(
     sol::Vector{Float64},
     P::CQKProblem{Float64,Vector{Float64}};
     x0 = Float64[],
-    nthreads = 1
+    nthreads = 1,
+    method = 0,
+    timelimit = 10
 )
     n = length(P.a)
     res = @ccall joinpath(dirname(@__FILE__), "hexaly_cqk.so").hexaly_cqk(
@@ -14,16 +16,23 @@ function hexaly_cqk!(
         P.l::Ptr{Cdouble},
         P.u::Ptr{Cdouble},
         sol::Ptr{Cdouble},
-        nthreads::Cint
+        nthreads::Cint,
+        timelimit::Cint
     )::Cint
     return max(res, 0), (res >= 0) ? :solved : :failed
 end
 
 function hexaly_cqk(
-    P::CQKProblem{Float64,Vector{Float64}}; x0 = Float64[], nthreads = 1
+    P::CQKProblem{Float64,Vector{Float64}};
+    x0 = Float64[],
+    nthreads = 1,
+    method = 0,
+    timelimit = 10
 )
     n = length(P.a)
     sol = similar(P.a)
-    iter, flag = hexaly_cqk!(sol, P, x0=x0, nthreads=nthreads)
+    iter, flag = hexaly_cqk!(
+        sol, P, x0=x0, nthreads=nthreads, timelimit=timelimit
+    )
     return sol, iter, flag
 end

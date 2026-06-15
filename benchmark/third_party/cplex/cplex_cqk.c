@@ -5,7 +5,7 @@
 
 int cplex_cqk(int n, double *restrict d, double *restrict a,
     double *restrict b, double r, double *restrict low, double *restrict up,
-    double *x, int nthreads)
+    double *x, int nthreads, int method, double timelimit)
 {
    char     sense[1] = {'E'};
    double   rhs[1] = {r};
@@ -31,7 +31,11 @@ int cplex_cqk(int n, double *restrict d, double *restrict a,
 
    error = CPXsetintparam (env, CPXPARAM_ScreenOutput, CPX_OFF);
    if (error) goto TERMINATE;
-   error = CPXsetdblparam(env, CPXPARAM_Barrier_ConvergeTol, 1e-8);   // relative opt
+   error = CPXsetintparam (env, CPXPARAM_QPMethod, method);
+   if (error) goto TERMINATE;
+   error = CPXsetdblparam(env, CPXPARAM_TimeLimit, timelimit);
+   if (error) goto TERMINATE;
+   error = CPXsetdblparam(env, CPXPARAM_Barrier_ConvergeTol, 1e-8); // relative
    if (error) goto TERMINATE;
    error = CPXsetintparam(env, CPXPARAM_Preprocessing_Presolve, CPX_OFF);
    if (error) goto TERMINATE;
@@ -69,7 +73,10 @@ int cplex_cqk(int n, double *restrict d, double *restrict a,
       error = CPXgetx (env, lp, x, 0, n-1);
       if (error) goto TERMINATE;
 
-      status = CPXgetbaritcnt (env, lp);
+      if (method == 4)
+         status = CPXgetbaritcnt (env, lp);
+      else
+         status = CPXgetitcnt (env, lp);
    }
 
 TERMINATE:
