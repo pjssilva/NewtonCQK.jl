@@ -48,6 +48,8 @@ function spg(n, f, g!, proj!;
     proj!(d, x, g)
     @. s = tsmall * d
     @. xnew = x + s
+    # compute f(xnew) to ensure that gnew will be computed correctly (for SVM)
+    fnew = f(xnew)
     g!(gnew, xnew)
     @. y = gnew - g
     sts = dot(s, s)
