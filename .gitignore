@@ -1,6 +1,9 @@
 .vscode
 *Manifest*.toml
 *.o
+*.a
 *.so
 *.jld2
+*.gz
 benchmark/results/output
+benchmark/third_party/pproj/PPROJ-1.0
