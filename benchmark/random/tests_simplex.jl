@@ -98,6 +98,22 @@ if USECUDA < 32
             (P, nthreads) -> reldiff_sol(P, simplex_proj)
         )
     )
+
+    if isfile(
+        joinpath(projectpath, "third_party", "pproj", "pproj_cqk.so")
+    )
+        push!(
+            SIMPLEX_METHODS,
+            METHOD(
+                "PPROJ",
+                identity,
+                (P, nthreads) -> b_pproj(P, nthreads),
+                (P, nthreads) -> (0, pproj_proj(P)[2]),
+                (P, nthreads) -> simplex_infeas(pproj_proj(P)[1]),
+                (P, nthreads) -> Inf
+            )
+        )
+    end
 end
 
 # Simplex, dense, GPU, Float32

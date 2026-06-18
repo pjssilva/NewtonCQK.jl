@@ -34,26 +34,13 @@ include(
         "l1ball_wrap.jl"
     )
 )
+include(joinpath("../third_party", "pproj", "pproj_interface.jl"))
 include(
-    joinpath(
-        "../third_party", "quadratic_knapsack_source", "cqn_interface.jl"
-    )
+    joinpath("../third_party", "quadratic_knapsack_source", "cqn_interface.jl")
 )
-include(
-    joinpath(
-        "../third_party", "cplex", "cplex_interface.jl"
-    )
-)
-include(
-    joinpath(
-        "../third_party", "gurobi", "gurobi_interface.jl"
-    )
-)
-include(
-    joinpath(
-        "../third_party", "hexaly", "hexaly_interface.jl"
-    )
-)
+include(joinpath("../third_party", "cplex", "cplex_interface.jl"))
+include(joinpath("../third_party", "gurobi", "gurobi_interface.jl"))
+include(joinpath("../third_party", "hexaly", "hexaly_interface.jl"))
 
 # Benchmark
 function estimatetime(b)

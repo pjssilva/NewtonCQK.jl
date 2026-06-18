@@ -128,6 +128,19 @@ function b_Ccondat(P, nthreads)
     end
 end
 
+# Benchmark for PPROJ
+function b_pproj(P, nthreads)
+    if nthreads == 1
+        sol = similar(P)
+        b = @benchmarkable pproj_proj!($sol, $P)
+        time = estimatetime(b)
+        return time
+    else
+        # Condat's code is not parallel
+        return Inf
+    end
+end
+
 # Benchmark for CQN
 function b_cms_cqn(P, nthreads)
     if nthreads == 1
