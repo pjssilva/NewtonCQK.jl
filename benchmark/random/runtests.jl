@@ -23,6 +23,10 @@ function get_parameters()
         arg_type = Bool
         default = true
         help = "continue previous tests?"
+        "--comm_maxn"
+        arg_type = Int
+        default = 10^6
+        help = "maximum number of variables that commercial solvers can be applied"
     end
     return parse_args(s)
 end
@@ -140,7 +144,7 @@ end
 # Benchmark for commercial software (CPLEX, GUROBI, Hexaly)
 function b_commercial(P, alg, nthreads, method)
     sol = similar(P.a)
-    b = @benchmarkable $alg($sol, $P; nthreads=nthreads, method=method)
+    b = @benchmarkable $alg($sol, $P; nthreads=$nthreads, method=$method)
     time = estimatetime(b)
     return time
 end
@@ -260,7 +264,7 @@ function executed(results, p, id, m, nthreads)
 end
 
 # Main function
-function alltests(cont, nreps)
+function alltests(cont, nreps, comm_maxn)
     nthreads = Threads.nthreads()
 
     output = joinpath(projectpath, "results", "results_random.jld2")
@@ -295,6 +299,15 @@ function alltests(cont, nreps)
                 for m in test.methods
                     if executed(results, p, id, m, nthreads)
                         # Already done, skip...
+                        continue
+                    end
+
+                    # Skip commercial solver if n > comm_maxn
+                    if (p.n > comm_maxn) && (
+                        contains(m.name, "cplex") ||
+                        contains(m.name, "gurobi") ||
+                        contains(m.name, "hexaly")
+                    )
                         continue
                     end
 
@@ -344,7 +357,7 @@ function main(args)
     opts = get_parameters()
 
     println("===================\nRandom\n===================")
-    alltests(opts["continue"], opts["nreps"])
+    alltests(opts["continue"], opts["nreps"], opts["comm_maxn"])
 
     return 0
 end

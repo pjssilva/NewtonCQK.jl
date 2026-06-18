@@ -3,6 +3,13 @@ include("../common/common.jl")
 using Distances
 using OpenML
 
+struct SVM_DATASET
+    Z::Matrix{Float64}
+    y::Vector{Float64}
+    snz::Vector{Float64}
+    Hx::Vector{Float64}
+end
+
 function get_parameters()
     s = ArgParseSettings()
     @add_arg_table s begin
@@ -46,25 +53,32 @@ function readdataset(id, datasets)
     y = ones(n)
     # c[1]: 1, c[2]: -1
     y[datasets[row].data[:,end] .== c[1]] .= -1
-    return Z, y
-end
 
-# Given γ and data Z, creates the nxn dense Hessian
-function denseH(Z, γ)
-    H = pairwise(SqEuclidean(), Z, Z, dims=2)
-    H .= exp.(-γ .* H)
-    return H
+    # Pre-compute squared norm of each sample
+    snz = Vector{Float64}(undef, n)
+    for i in eachindex(snz)
+        snz[i] = dot(Z[:,i],Z[:,i])
+    end
+    return SVM_DATASET(Z, y, snz, Vector{Float64}(undef, n))
 end
 
 # Objective function
-function f(x, H, sgny)
-    return 0.5 * dot(x, Symmetric(H), x) - dot(sgny, x)
+function f(x, data::SVM_DATASET, sgny)
+    @inbounds for i in eachindex(data.Hx)
+        sum_Hij_xj = 0.0
+        for j in eachindex(data.Hx)
+            sum_Hij_xj += exp(-γ * (data.snz[i] + data.snz[j] -
+                dot(@views data.Z[:,i],@views data.Z[:,j]))) * x[j]
+        end
+        data.Hx[i] = sum_Hij_xj
+    end
+    return 0.5 * dot(data.Hx, x) - dot(sgny, x)
 end
 
 # Gradient of objective function
-function g!(g, x, H, sgny)
-    mul!(g, Symmetric(H), x)
-    g .-= sgny
+# We consider that data.Hx is already computed at x
+function g!(g, x, data::SVM_DATASET, sgny)
+    @. g .= data.Hx - sgny
 end
 
 # Projection (solve particular CQK), without warm start
@@ -79,7 +93,7 @@ function proj!(p, z, P::CQKProblem)
 end
 
 # Classification
-function classification(dualsol, H, y, C)
+function classification(dualsol, data::SVM_DATASET, y, C)
     error_measure = 0.0
     nerror = 0
 
@@ -94,7 +108,9 @@ function classification(dualsol, H, y, C)
         if (dualsol[j] > eps()) && (dualsol[j] < C - eps())
             bj = 0.0
             for i in eachindex(y)
-                bj += dualsol[i] * y[i] * H[i,j]
+                Hij = exp(-γ * (data.snz[i] + data.snz[j] -
+                    dot(@views data.Z[:,i],@views data.Z[:,j])))
+                bj += dualsol[i] * y[i] * Hij
             end
             b += bj - y[j]
             nint += 1
@@ -114,7 +130,9 @@ function classification(dualsol, H, y, C)
         @inbounds for j in eachindex(y)
             s = 0.0
             for i in eachindex(y)
-                s += dualsol[i] * y[i] * H[i,j]
+                Hij = exp(-γ * (data.snz[i] + data.snz[j] -
+                    dot(data.Z[:,i],data.Z[:,j])))
+                s += dualsol[i] * y[i] * Hij
             end
             if dualsol[j] <= eps()
                 if y[j] > 0.0
@@ -136,7 +154,9 @@ function classification(dualsol, H, y, C)
     @inbounds for j in eachindex(y)
         s = 0.0
         for i in eachindex(y)
-            s += dualsol[i] * y[i] * H[i,j]
+            Hij = exp(-γ * (data.snz[i] + data.snz[j] -
+                dot(data.Z[:,i],data.Z[:,j])))
+            s += dualsol[i] * y[i] * Hij
         end
         s -= b
         if signbit(s) != signbit(y[j])
@@ -150,7 +170,7 @@ end
 # Apply SPG and optionally benchmark
 # Training data is considered scaled here!
 function solve(
-    instance, Z, y, nthreads;
+    instance, data::SVM_DATASET, nthreads;
     results = nothing,
     γ = 0.01,
     C = 1.0,
@@ -161,18 +181,9 @@ function solve(
     @assert γ > 0.0 throw(ArgumentError("γ must be positive"))
     @assert C > 0.0 throw(ArgumentError("C must be positive"))
     @assert !isempty(instance) throw(ArgumentError("instance must be provided"))
-    @assert size(Z,2) == length(y) throw(DimensionMismatch("Z and y have incompatible dimensions"))
+    @assert size(data.Z,2) == length(data.y) throw(DimensionMismatch("Z and y have incompatible dimensions"))
 
-    n = size(Z,2)
-
-    # Hessian
-    H = []
-    try
-        H = denseH(Z, γ)
-    catch
-        @error "Error while computing H"
-        return 0, :H_error, 0, 0, 0, 0, 0
-    end
+    n = size(data.Z,2)
 
     # CQK for subproblems
     # Note: P.b must be positive, so we change variables (P.l, P.u, P.a must be
@@ -260,8 +271,8 @@ function solve(
     sgny = sign.(y)
     dualsol, spgiter, flag = spg(
         n,
-        x -> f(x, H, sgny),
-        (g, x) -> g!(g, x, H, sgny),
+        x -> f(x, data, sgny),
+        (g, x) -> g!(g, x, data, sgny),
         (p, z, x0) -> proj!(p, z, P),
         l = P.l, u = P.u,
         callback = isnothing(results) ? nothing : b_callback,
@@ -273,7 +284,7 @@ function solve(
     dualsol[maskchg] .*= -1.0
 
     # Classification quality
-    nerr, n0, nint, nC = classification(dualsol, Symmetric(H), y, C)
+    nerr, n0, nint, nC = classification(dualsol, data, y, C)
 
     return spgiter, flag, nerr, n0, nint, nC
 end
@@ -339,14 +350,14 @@ function alltests(cont)
             println("Features: $(m)")
             @printf("Parameters: γ = %12.8lf, C = %12.8lf\n", γ, C)
 
-            Z, y = readdataset(datasets[d].id, datasets)
-            if isnothing(Z)
+            data = readdataset(datasets[d].id, datasets)
+            if isnothing(data.Z)
                 println('-'^98)
                 continue
             end
 
             it, flag, nerror, n0, nint, nC = solve(
-                datasets[d].name, Z, y, nthreads;
+                datasets[d].name, data, nthreads;
                 γ = γ, C = C, verbose = 0
             )
 
@@ -367,7 +378,7 @@ function alltests(cont)
 
             # run again... perform benchmark for iterations in "it_range"
             _, _, flag = solve(
-                datasets[d].name, Z, y, nthreads;
+                datasets[d].name, data, nthreads;
                 results = results, γ = γ, C = C, verbose = 0
             )
 
