@@ -16,14 +16,21 @@ export hexaly_path="/opt/hexaly_14_5"
 echo "Compiling third-party software..."
 (cd third_party/condat/ && make)
 (cd third_party/quadratic_knapsack_source/lib/ && make)
+(cd third_party/pproj/ && make)
 if [ -d $cplex_path ]; then
     (cd third_party/cplex/ && make)
+else
+    echo "Invalid CPLEX path. Adjust 'cplex_path' to your instalation path if you want to use CPLEX"
 fi
 if [ -d $gurobi_path ]; then
     (cd third_party/gurobi/ && make)
+else
+    echo "Invalid GUROBI path. Adjust 'gurobi_path' to your instalation path if you want to use GUROBI"
 fi
 if [ -d $hexaly_path ]; then
     (cd third_party/hexaly/ && make)
+else
+    echo "Invalid Hexaly path. Adjust 'hexaly_path' to your instalation path if you want to use Hexaly"
 fi
 
 # Set 1 thread for BLAS (for third-party C code)
