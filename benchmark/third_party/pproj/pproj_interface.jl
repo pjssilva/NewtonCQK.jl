@@ -2,14 +2,14 @@ function pproj_proj!(sol, x; tol = 1e-9)
     n = length(x)
     res = @ccall joinpath(dirname(@__FILE__), "pproj_cqk.so").pproj_proj(
         n::Csize_t, x::Ptr{Cdouble}, sol::Ptr{Cdouble}, tol::Cdouble
-    )::Cvoid
+    )::Cint
     return (res == 0) ? :solved : :failed
 end
 
 function pproj_proj(x; tol = 1e-9)
     sol = similar(x)
-    res = pproj_proj!(sol, x; tol=tol)
-    return sol, (res == 0) ? :solved : :failed
+    status = pproj_proj!(sol, x; tol=tol)
+    return sol, status
 end
 
 function pproj_cqk!(
