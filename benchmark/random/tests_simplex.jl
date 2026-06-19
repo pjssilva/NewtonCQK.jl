@@ -105,7 +105,7 @@ if USECUDA < 32
         push!(
             SIMPLEX_METHODS,
             METHOD(
-                "PPROJ",
+                "pproj",
                 identity,
                 (P, nthreads) -> b_pproj(P, nthreads),
                 (P, nthreads) -> (0, pproj_proj(P)[2]),

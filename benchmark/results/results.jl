@@ -49,7 +49,8 @@ alglabels = Dict(
     "cplex (primal simplex)"=> "CPLEX (primal simplex)",
     "gurobi (barrier)"      => "GUROBI (barrier)",
     "gurobi (primal simplex)"=> "GUROBI (primal simplex)",
-    "hexaly"                => "Hexaly"
+    "hexaly"                => "Hexaly",
+    "pproj"                 => "PPROJ"
 )
 
 #########################
@@ -653,7 +654,7 @@ function generate_all()
         maxn = 10^9
     )
     table_cpu_gpu(
-        CQK_names,
+        ["Random 1";"Random 2";"Random 3"],
         "simplex (CPU, FP64)",      # CPU algorithm
         "simplex (GPU, FP64)",      # GPU algorithm
         suffix="_CPUvsGPU_simplex_FP64",
