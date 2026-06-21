@@ -65,7 +65,7 @@ if USECUDA < 32
             (P, nthreads) -> b_sparse(P, spsimplex_proj, nthreads),
             (P, nthreads) -> spsimplex_proj(P; nchunks=nthreads)[2:3],
             (P, nthreads) -> simplex_infeas(spsimplex_proj(P; nchunks=nthreads)[1]),
-            (P, nthreads) -> reldiff_sol(P, simplex_proj)
+            (P, nthreads) -> reldiff_sol(P, simplex_proj, spsimplex_proj(P; nchunks=nthreads)[1])
         )
     )
 
@@ -78,7 +78,7 @@ if USECUDA < 32
             (P, nthreads) -> b_Ccondat(P, nthreads),
             (P, nthreads) -> (-1, :solved),
             (P, nthreads) -> simplex_infeas(condat_proj(P)),
-            (P, nthreads) -> reldiff_sol(P, simplex_proj)
+            (P, nthreads) -> reldiff_sol(P, simplex_proj, condat_proj(P))
         )
     )
 
@@ -95,7 +95,11 @@ if USECUDA < 32
             else
                 simplex_infeas(condat_p(P, 1.0, nthreads, 0.001))
             end,
-            (P, nthreads) -> reldiff_sol(P, simplex_proj)
+            (P, nthreads) -> if nthreads == 1
+                reldiff_sol(P, simplex_proj, condat_s(P, 1.0))
+            else
+                reldiff_sol(P, simplex_proj, condat_p(P, 1.0, nthreads, 0.001))
+            end
         )
     )
 
@@ -110,7 +114,7 @@ if USECUDA < 32
                 (P, nthreads) -> b_pproj(P, nthreads),
                 (P, nthreads) -> (0, pproj_proj(P)[2]),
                 (P, nthreads) -> simplex_infeas(pproj_proj(P)[1]),
-                (P, nthreads) -> Inf
+                (P, nthreads) -> reldiff_sol(P, simplex_proj, pproj_proj(P)[1])
             )
         )
     end
@@ -126,7 +130,7 @@ if USECUDA > 32
             (P, nthreads) -> b_cuda(P, simplex_proj!, nthreads),
             (P, nthreads) -> simplex_proj(P)[2:3],
             (P, nthreads) -> simplex_infeas(simplex_proj(P)[1]),
-            (P, nthreads) -> reldiff_sol(P, simplex_proj)
+            (P, nthreads) -> reldiff_sol(P, simplex_proj, simplex_proj(P)[1])
         )
     )
 end
@@ -141,7 +145,7 @@ if USECUDA < 32
             (P, nthreads) -> b_dense(P, simplex_proj!, nthreads),
             (P, nthreads) -> simplex_proj(P; nchunks=nthreads)[2:3],
             (P, nthreads) -> simplex_infeas(simplex_proj(P; nchunks=nthreads)[1]),
-            (P, nthreads) -> reldiff_sol(P, simplex_proj)
+            (P, nthreads) -> reldiff_sol(P, simplex_proj, simplex_proj(P; nchunks=nthreads)[1])
         )
     )
 else
@@ -153,7 +157,7 @@ else
             (P, nthreads) -> b_cuda(P, simplex_proj!, nthreads),
             (P, nthreads) -> simplex_proj(P)[2:3],
             (P, nthreads) -> simplex_infeas(simplex_proj(P)[1]),
-            (P, nthreads) -> reldiff_sol(P, simplex_proj)
+            (P, nthreads) -> reldiff_sol(P, simplex_proj, simplex_proj(P)[1])
         )
     )
 end

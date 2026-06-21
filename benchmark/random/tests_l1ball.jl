@@ -41,7 +41,7 @@ if USECUDA < 32
             (P, nthreads) -> b_sparse(P, spl1ball_proj, nthreads),
             (P, nthreads) -> spl1ball_proj(P; nchunks=nthreads)[2:3],
             (P, nthreads) -> l1ball_infeas(spl1ball_proj(P; nchunks=nthreads)[1]),
-            (P, nthreads) -> reldiff_sol(P, l1ball_proj)
+            (P, nthreads) -> reldiff_sol(P, l1ball_proj, spl1ball_proj(P; nchunks=nthreads)[1])
         )
     )
 
@@ -58,7 +58,11 @@ if USECUDA < 32
             else
                 l1ball_infeas(l1ball_condat_p(P, 1.0, nthreads, 0.001))
             end,
-            (P, nthreads) -> reldiff_sol(P, l1ball_proj)
+            (P, nthreads) -> if (nthreads == 1)
+                reldiff_sol(P, l1ball_proj, l1ball_condat_s(P, 1.0))
+            else
+                reldiff_sol(P, l1ball_proj, l1ball_condat_p(P, 1.0, nthreads, 0.001))
+            end
         )
     )
 end
@@ -73,7 +77,7 @@ if USECUDA > 32
             (P, nthreads) -> b_cuda(P, l1ball_proj!, nthreads),
             (P, nthreads) -> l1ball_proj(P)[2:3],
             (P, nthreads) -> l1ball_infeas(l1ball_proj(P)[1]),
-            (P, nthreads) -> reldiff_sol(P, l1ball_proj)
+            (P, nthreads) -> reldiff_sol(P, l1ball_proj, l1ball_proj(P)[1])
         )
     )
 end
@@ -88,7 +92,7 @@ if USECUDA < 32
             (P, nthreads) -> b_dense(P, l1ball_proj!, nthreads),
             (P, nthreads) -> l1ball_proj(P; nchunks=nthreads)[2:3],
             (P, nthreads) -> l1ball_infeas(l1ball_proj(P; nchunks=nthreads)[1]),
-            (P, nthreads) -> reldiff_sol(P, l1ball_proj)
+            (P, nthreads) -> reldiff_sol(P, l1ball_proj, l1ball_proj(P; nchunks=nthreads)[1])
         )
     )
 else
@@ -101,7 +105,7 @@ else
             (P, nthreads) -> b_cuda(P, l1ball_proj!, nthreads),
             (P, nthreads) -> l1ball_proj(P)[2:3],
             (P, nthreads) -> l1ball_infeas(l1ball_proj(P)[1]),
-            (P, nthreads) -> reldiff_sol(P, l1ball_proj)
+            (P, nthreads) -> reldiff_sol(P, l1ball_proj, l1ball_proj(P)[1])
         )
     )
 end

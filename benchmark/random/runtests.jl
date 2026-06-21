@@ -88,20 +88,11 @@ push!(TESTS, TEST("l1 ball", SIMPLEX_INSTANCES, l1BALL_METHODS))
 # Benchmark
 ############################
 
-# Relative difference between FP64 and alternative solutions
-function reldiff_sol(P, cpualg, altalg)
-    alt_sol = altalg(P)[1]
+# Relative difference between FP64 "cpualg" and alternative solutions
+function reldiff_sol(P, cpualg, altsol)
     cpu_P = GPUtoCPU(P, Float64)
     cpu_sol = cpualg(cpu_P)[1]
-    return norm(Vector(alt_sol) - cpu_sol) / norm(cpu_sol)
-end
-reldiff_sol(P, alg) = reldiff_sol(P, alg, alg)
-
-function commercial_reldiff_sol(P, cpualg, altalg, method)
-    alt_sol = altalg(P, method=method)[1]
-    cpu_P = GPUtoCPU(P, Float64)
-    cpu_sol = cpualg(cpu_P)[1]
-    return norm(Vector(alt_sol) - cpu_sol) / norm(cpu_sol)
+    return norm(Vector(altsol) - cpu_sol) / norm(cpu_sol)
 end
 
 # Benchmark for Parallel Condat
@@ -120,19 +111,6 @@ function b_Ccondat(P, nthreads)
     if nthreads == 1
         sol = similar(P)
         b = @benchmarkable condat_proj!($sol, $P)
-        time = estimatetime(b)
-        return time
-    else
-        # Condat's code is not parallel
-        return Inf
-    end
-end
-
-# Benchmark for PPROJ
-function b_pproj(P, nthreads)
-    if nthreads == 1
-        sol = similar(P)
-        b = @benchmarkable pproj_proj!($sol, $P)
         time = estimatetime(b)
         return time
     else
@@ -201,6 +179,40 @@ function b_cuda(
         # pinthreads(:cores)
         return time
     else
+        return Inf
+    end
+end
+
+# Benchmark for PPROJ
+function b_pproj(P, nthreads)
+    if nthreads == 1
+        sol = similar(ref_obj(P))
+        n = length(sol)
+        Ap = collect(Cint, 0:n)
+        Ai = zeros(Cint, n)
+        # we separate the cases CQK and projection onto simplex here
+        # because the pre-allocated structures needed by algorithms are
+        # different
+        if typeof(P) <: CQKProblem
+            # scaled problem
+            pprojP = CQKProblem(
+                Cdouble.(P.d),
+                Cdouble.(P.a ./ sqrt.(P.d)),
+                Cdouble.(P.b ./ sqrt.(P.d)),
+                Cdouble(P.r),
+                Cdouble.(P.l .* sqrt.(P.d)),
+                Cdouble.(P.u .* sqrt.(P.d))
+                )
+            b = @benchmarkable pproj_cqk!($sol, $pprojP, $Ap, $Ai)
+        else
+            zrs = zeros(Cdouble, n)
+            ons = ones(Cdouble, n)
+            b = @benchmarkable pproj_proj!($sol, $P, $Ap, $Ai, $zrs, $ons)
+        end
+        time = estimatetime(b)
+        return time
+    else
+        # PPROJ's code is not parallel
         return Inf
     end
 end

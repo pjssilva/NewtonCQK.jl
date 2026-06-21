@@ -36,7 +36,6 @@ function cplex_cqk(
     method = 0,
     timelimit = 10.0
 )
-    n = length(P.a)
     sol = similar(P.a)
     iter, flag = cplex_cqk!(
         sol, P, x0=x0, nthreads=nthreads, method=method, timelimit=timelimit

@@ -90,9 +90,25 @@ if USECUDA < 32
             (P, nthreads) -> b_cms_cqn(P, nthreads),
             (P, nthreads) -> cms_cqn(P)[2:3],
             (P, nthreads) -> cqk_infeas(P, cms_cqn(P)[1]),
-            (P, nthreads) -> reldiff_sol(P, cqk, cms_cqn)
+            (P, nthreads) -> reldiff_sol(P, cqk, cms_cqn(P)[1])
         )
     )
+
+    if isfile(
+        joinpath(projectpath, "third_party", "pproj", "pproj_cqk.so")
+        )
+        push!(
+            CQK_METHODS,
+            METHOD(
+                "pproj",
+                identity,
+                (P, nthreads) -> b_pproj(P, nthreads),
+                (P, nthreads) -> (0, pproj_cqk(P)[2]),
+                (P, nthreads) -> cqk_infeas(P, pproj_cqk(P)[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, pproj_cqk(P)[1])
+                )
+            )
+    end
 
     if isfile(
         joinpath(projectpath, "third_party", "cplex", "cplex_cqk.so")
@@ -113,7 +129,7 @@ if USECUDA < 32
                 (P, nthreads) -> b_commercial(P, cplex_cqk!, nthreads, 4),
                 (P, nthreads) -> cplex_cqk(P, method = 4)[2:3],
                 (P, nthreads) -> cqk_infeas(P, cplex_cqk(P, method = 4)[1]),
-                (P, nthreads) -> commercial_reldiff_sol(P, cqk, cplex_cqk, 4)
+                (P, nthreads) -> reldiff_sol(P, cqk, cplex_cqk(P, method = 4)[1])
             )
         )
 #         push!(
@@ -124,7 +140,7 @@ if USECUDA < 32
 #                 (P, nthreads) -> b_commercial(P, cplex_cqk!, nthreads, 1),
 #                 (P, nthreads) -> cplex_cqk(P, method = 1)[2:3],
 #                 (P, nthreads) -> cqk_infeas(P, cplex_cqk(P, method = 1)[1]),
-#                 (P, nthreads) -> commercial_reldiff_sol(P, cqk, cplex_cqk, 1)
+#                 (P, nthreads) -> reldiff_sol(P, cqk, cplex_cqk(P, method = 1)[1])
 #             )
 #         )
     end
@@ -142,7 +158,7 @@ if USECUDA < 32
                 (P, nthreads) -> b_commercial(P, gurobi_cqk!, nthreads, 2),
                 (P, nthreads) -> gurobi_cqk(P, method = 2)[2:3],
                 (P, nthreads) -> cqk_infeas(P, gurobi_cqk(P, method = 2)[1]),
-                (P, nthreads) -> commercial_reldiff_sol(P, cqk, gurobi_cqk, 2)
+                (P, nthreads) -> reldiff_sol(P, cqk, gurobi_cqk(P, method = 2)[1])
             )
         )
 #         push!(
@@ -153,7 +169,7 @@ if USECUDA < 32
 #                 (P, nthreads) -> b_commercial(P, gurobi_cqk!, nthreads, 0),
 #                 (P, nthreads) -> gurobi_cqk(P, method = 0)[2:3],
 #                 (P, nthreads) -> cqk_infeas(P, gurobi_cqk(P, method = 0)[1]),
-#                 (P, nthreads) -> commercial_reldiff_sol(P, cqk, gurobi_cqk, 0)
+#                 (P, nthreads) -> reldiff_sol(P, cqk, gurobi_cqk(P, method = 0)[1])
 #             )
 #         )
     end
@@ -169,7 +185,7 @@ if USECUDA < 32
                 (P, nthreads) -> b_commercial(P, hexaly_cqk!, nthreads, 0),
                 (P, nthreads) -> hexaly_cqk(P, method = 0)[2:3],
                 (P, nthreads) -> cqk_infeas(P, hexaly_cqk(P, method = 0)[1]),
-                (P, nthreads) -> commercial_reldiff_sol(P, cqk, hexaly_cqk, 0)
+                (P, nthreads) -> reldiff_sol(P, cqk, hexaly_cqk(P, method = 0)[1])
                 )
             )
     end
@@ -182,7 +198,7 @@ else
             (P, nthreads) -> b_cuda(P, cqk!, nthreads),
             (P, nthreads) -> cqk(P)[2:3],
             (P, nthreads) -> cqk_infeas(P, cqk(P)[1]),
-            (P, nthreads) -> reldiff_sol(P, cqk)
+            (P, nthreads) -> reldiff_sol(P, cqk, cqk(P)[1])
         )
     )
 end
@@ -196,7 +212,7 @@ if USECUDA < 32
             (P, nthreads) -> b_dense(P, cqk!, nthreads),
             (P, nthreads) -> cqk(P; nchunks=nthreads)[2:3],
             (P, nthreads) -> cqk_infeas(P, cqk(P; nchunks=nthreads)[1]),
-            (P, nthreads) -> reldiff_sol(P, cqk)
+            (P, nthreads) -> reldiff_sol(P, cqk, cqk(P; nchunks=nthreads)[1])
         )
     )
 else
@@ -208,7 +224,7 @@ else
             (P, nthreads) -> b_cuda(P, cqk!, nthreads),
             (P, nthreads) -> cqk(P)[2:3],
             (P, nthreads) -> cqk_infeas(P, cqk(P)[1]),
-            (P, nthreads) -> reldiff_sol(P, cqk)
+            (P, nthreads) -> reldiff_sol(P, cqk, cqk(P)[1])
         )
     )
 end
