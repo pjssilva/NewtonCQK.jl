@@ -5,7 +5,7 @@ function pproj_proj!(
     Ai::Vector{Cint},
     zrs,
     ons;
-    tol = 1e-9
+    tol = 1e-6
 )
     n = length(x)
     res = @ccall joinpath(dirname(@__FILE__), "pproj_cqk.so").pproj_proj(
@@ -21,7 +21,7 @@ function pproj_proj!(
     return (res == 0) ? :solved : :failed
 end
 
-function pproj_proj(x; tol = 1e-9)
+function pproj_proj(x; tol = 1e-6)
     n = length(x)
     sol = similar(x)
     Ap = collect(Cint, 0:n)
