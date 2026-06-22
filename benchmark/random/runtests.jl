@@ -25,7 +25,7 @@ function get_parameters()
         help = "continue previous tests?"
         "--comm_maxn"
         arg_type = Int
-        default = 10^6
+        default = 10^5
         help = "maximum number of variables that commercial solvers can be applied"
     end
     return parse_args(s)
@@ -89,15 +89,8 @@ push!(TESTS, TEST("l1 ball", SIMPLEX_INSTANCES, l1BALL_METHODS))
 ############################
 
 # Relative difference between FP64 "cpualg" and alternative solutions
-function reldiff_sol(P, cpualg, altsol; scale = false)
+function reldiff_sol(P, cpualg, altsol)
     cpu_P = GPUtoCPU(P, Float64)
-    if scale
-        sqrtd = sqrt.(cpu_P.d)
-        cpu_P.a .*= sqrtd
-        cpu_P.b .*= sqrtd
-        cpu_P.l ./= sqrtd
-        cpu_P.u ./= sqrtd
-    end
     cpu_sol = cpualg(cpu_P)[1]
     return norm(Vector(altsol) - cpu_sol) / norm(cpu_sol)
 end
@@ -140,9 +133,9 @@ function b_cms_cqn(P, nthreads)
 end
 
 # Benchmark for commercial software (CPLEX, GUROBI, Hexaly)
-function b_commercial(P, alg, nthreads, method)
+function b_commercial(P, alg, nthreads)
     sol = similar(P.a)
-    b = @benchmarkable $alg($sol, $P; nthreads=$nthreads, method=$method)
+    b = @benchmarkable $alg($sol, $P; nthreads=$nthreads)
     time = estimatetime(b)
     return time
 end

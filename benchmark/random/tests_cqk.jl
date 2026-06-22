@@ -113,36 +113,17 @@ if USECUDA < 32
     if isfile(
         joinpath(projectpath, "third_party", "cplex", "cplex_cqk.so")
     )
-        # method:
-        # 0 Automatic: let CPLEX choose; default
-        # 1 Use the primal simplex optimizer.
-        # 2 Use the dual simplex optimizer.
-        # 3 Use the network optimizer.
-        # 4 Use the barrier optimizer.
-        # 6 Use the concurrent optimizer.
-
         push!(
             CQK_METHODS,
             METHOD(
                 "cplex (barrier)",
                 identity,
-                (P, nthreads) -> b_commercial(P, cplex_cqk!, nthreads, 4),
-                (P, nthreads) -> cplex_cqk(P, method = 4)[2:3],
-                (P, nthreads) -> cqk_infeas(P, cplex_cqk(P, method = 4)[1]),
-                (P, nthreads) -> reldiff_sol(P, cqk, cplex_cqk(P, method = 4)[1])
+                (P, nthreads) -> b_commercial(P, cplex_cqk!, nthreads),
+                (P, nthreads) -> cplex_cqk(P)[2:3],
+                (P, nthreads) -> cqk_infeas(P, cplex_cqk(P)[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, cplex_cqk(P)[1])
             )
         )
-#         push!(
-#             CQK_METHODS,
-#             METHOD(
-#                 "cplex (primal simplex)",
-#                 identity,
-#                 (P, nthreads) -> b_commercial(P, cplex_cqk!, nthreads, 1),
-#                 (P, nthreads) -> cplex_cqk(P, method = 1)[2:3],
-#                 (P, nthreads) -> cqk_infeas(P, cplex_cqk(P, method = 1)[1]),
-#                 (P, nthreads) -> reldiff_sol(P, cqk, cplex_cqk(P, method = 1)[1])
-#             )
-#         )
     end
 
     if isfile(
@@ -155,23 +136,12 @@ if USECUDA < 32
             METHOD(
                 "gurobi (barrier)",
                 identity,
-                (P, nthreads) -> b_commercial(P, gurobi_cqk!, nthreads, 2),
-                (P, nthreads) -> gurobi_cqk(P, method = 2)[2:3],
-                (P, nthreads) -> cqk_infeas(P, gurobi_cqk(P, method = 2)[1]),
-                (P, nthreads) -> reldiff_sol(P, cqk, gurobi_cqk(P, method = 2)[1])
+                (P, nthreads) -> b_commercial(P, gurobi_cqk!, nthreads),
+                (P, nthreads) -> gurobi_cqk(P)[2:3],
+                (P, nthreads) -> cqk_infeas(P, gurobi_cqk(P)[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, gurobi_cqk(P)[1])
             )
         )
-#         push!(
-#             CQK_METHODS,
-#             METHOD(
-#                 "gurobi (primal simplex)",
-#                 identity,
-#                 (P, nthreads) -> b_commercial(P, gurobi_cqk!, nthreads, 0),
-#                 (P, nthreads) -> gurobi_cqk(P, method = 0)[2:3],
-#                 (P, nthreads) -> cqk_infeas(P, gurobi_cqk(P, method = 0)[1]),
-#                 (P, nthreads) -> reldiff_sol(P, cqk, gurobi_cqk(P, method = 0)[1])
-#             )
-#         )
     end
 
     if isfile(
@@ -182,10 +152,10 @@ if USECUDA < 32
             METHOD(
                 "hexaly",
                 identity,
-                (P, nthreads) -> b_commercial(P, hexaly_cqk!, nthreads, 0),
-                (P, nthreads) -> hexaly_cqk(P, method = 0)[2:3],
-                (P, nthreads) -> cqk_infeas(P, hexaly_cqk(P, method = 0)[1]),
-                (P, nthreads) -> reldiff_sol(P, cqk, hexaly_cqk(P, method = 0)[1])
+                (P, nthreads) -> b_commercial(P, hexaly_cqk!, nthreads),
+                (P, nthreads) -> hexaly_cqk(P)[2:3],
+                (P, nthreads) -> cqk_infeas(P, hexaly_cqk(P)[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, hexaly_cqk(P)[1])
                 )
             )
     end

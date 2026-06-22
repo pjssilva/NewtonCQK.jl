@@ -3,12 +3,11 @@ function gurobi_cqk!(
     P::CQKProblem{Float64,Vector{Float64}};
     x0 = Float64[],
     nthreads = 1,
-    method = -1,  # -1=automatic, 0=primal simplex, 1=dual simplex, 2=barrier
     timelimit = 10.0
 )
     n = length(P.a)
     res = @ccall joinpath(dirname(@__FILE__), "gurobi_cqk.so").gurobi_cqk(
-        n::Cint,
+        n::Csize_t,
         P.d::Ptr{Cdouble},
         P.a::Ptr{Cdouble},
         P.b::Ptr{Cdouble},
@@ -16,8 +15,8 @@ function gurobi_cqk!(
         P.l::Ptr{Cdouble},
         P.u::Ptr{Cdouble},
         sol::Ptr{Cdouble},
-        nthreads::Cint,
-        method::Cint,
+        nthreads::Csize_t,
+        2::Cint,
         timelimit::Cdouble
     )::Cint
     return max(res, 0), (res >= 0) ? :solved : :failed
@@ -27,12 +26,11 @@ function gurobi_cqk(
     P::CQKProblem{Float64,Vector{Float64}};
     x0 = Float64[],
     nthreads = 1,
-    method = -1,
     timelimit = 10.0
 )
     sol = similar(P.a)
     iter, flag = gurobi_cqk!(
-        sol, P, x0=x0, nthreads=nthreads, method=method, timelimit=timelimit
+        sol, P, x0=x0, nthreads=nthreads, timelimit=timelimit
     )
     return sol, iter, flag
 end
