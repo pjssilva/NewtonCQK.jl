@@ -41,12 +41,8 @@ function CQK_corr(n)
     return CQKProblem(d, a, b, r, l, u)
 end
 
-function cqk_infeas(P, sol; scale = false)
-    if scale
-        return abs(dot(P.b .* sqrt.(P.d), sol) - P.r) / max(abs(P.r), 1.0)
-    else
-        return abs(dot(P.b, sol) - P.r) / max(abs(P.r), 1.0)
-    end
+function cqk_infeas(P, sol)
+    return abs(dot(P.b, sol) - P.r) / max(abs(P.r), 1.0)
 end
 
 #################################
@@ -105,11 +101,11 @@ if USECUDA < 32
             CQK_METHODS,
             METHOD(
                 "pproj",
-                P -> CPUtoPPROJ(P),
+                identity,
                 (P, nthreads) -> b_pproj(P, nthreads),
                 (P, nthreads) -> (0, pproj_cqk(P)[2]),
-                (P, nthreads) -> cqk_infeas(P, pproj_cqk(P)[1], scale=true),
-                (P, nthreads) -> reldiff_sol(P, cqk, pproj_cqk(P)[1], scale=true)
+                (P, nthreads) -> cqk_infeas(P, pproj_cqk(CPUtoPPROJ(P))[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, pproj_cqk(CPUtoPPROJ(P))[1])
                 )
             )
     end

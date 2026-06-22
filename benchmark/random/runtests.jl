@@ -198,10 +198,10 @@ function b_pproj(P, nthreads)
         Ap = collect(Cint, 0:n)
         Ai = zeros(Cint, n)
         # we separate the cases CQK and projection onto simplex here
-        # because the pre-allocated structures needed by algorithms are
-        # different
+        # because the pre-allocated structures are different
         if typeof(P) <: CQKProblem
-            b = @benchmarkable pproj_cqk!($sol, $P, $Ap, $Ai)
+            pprojP = CPUtoPPROJ(P)
+            b = @benchmarkable pproj_cqk!($sol, $pprojP, $Ap, $Ai)
         else
             zrs = zeros(Cdouble, n)
             ons = ones(Cdouble, n)
