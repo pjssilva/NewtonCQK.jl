@@ -35,3 +35,16 @@ end
 function F64toF32(P::Vector)
     return Float32.(P)
 end
+
+# Scale problems to apply PPROJ
+function CPUtoPPROJ(P::CQKProblem)
+    sqrtd = sqrt.(P.d)
+    return CQKProblem(
+        Cdouble.(P.d),
+        Cdouble.(P.a ./ sqrtd),
+        Cdouble.(P.b ./ sqrtd),
+        Cdouble(P.r),
+        Cdouble.(P.l .* sqrtd),
+        Cdouble.(P.u .* sqrtd)
+    )
+end

@@ -89,8 +89,15 @@ push!(TESTS, TEST("l1 ball", SIMPLEX_INSTANCES, l1BALL_METHODS))
 ############################
 
 # Relative difference between FP64 "cpualg" and alternative solutions
-function reldiff_sol(P, cpualg, altsol)
+function reldiff_sol(P, cpualg, altsol; scale = false)
     cpu_P = GPUtoCPU(P, Float64)
+    if scale
+        sqrtd = sqrt.(cpu_P.d)
+        cpu_P.a .*= sqrtd
+        cpu_P.b .*= sqrtd
+        cpu_P.l ./= sqrtd
+        cpu_P.u ./= sqrtd
+    end
     cpu_sol = cpualg(cpu_P)[1]
     return norm(Vector(altsol) - cpu_sol) / norm(cpu_sol)
 end
@@ -194,16 +201,7 @@ function b_pproj(P, nthreads)
         # because the pre-allocated structures needed by algorithms are
         # different
         if typeof(P) <: CQKProblem
-            # scaled problem
-            pprojP = CQKProblem(
-                Cdouble.(P.d),
-                Cdouble.(P.a ./ sqrt.(P.d)),
-                Cdouble.(P.b ./ sqrt.(P.d)),
-                Cdouble(P.r),
-                Cdouble.(P.l .* sqrt.(P.d)),
-                Cdouble.(P.u .* sqrt.(P.d))
-                )
-            b = @benchmarkable pproj_cqk!($sol, $pprojP, $Ap, $Ai)
+            b = @benchmarkable pproj_cqk!($sol, $P, $Ap, $Ai)
         else
             zrs = zeros(Cdouble, n)
             ons = ones(Cdouble, n)

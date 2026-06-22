@@ -18,8 +18,8 @@
  *   zeros: vector of 0's
  * We have Ap[i] = i and Ai[i] = 0 for all 0 <= i <= n-1 and Ap[n] = n.
  */
-int pproj_proj(int n, double *restrict y, int *Ap, int *Ai, double *zeros,
-    double *ones, double *x, double grad_tol)
+int pproj_proj(int n, double *restrict y, int *restrict Ap, int *restrict Ai,
+    double *restrict zeros, double *restrict ones, double *x, double grad_tol)
 {
     int status = -1;
     double lambda[1] = {0.0};
@@ -58,7 +58,7 @@ int pproj_proj(int n, double *restrict y, int *Ap, int *Ai, double *zeros,
  * CQK
  * min_y 0.5 xt D x - at x   s.t.   bt x = r,  l <= x <= u
  *
- * Writing z = D^{1/2}x, we can rewrite the problem as
+ * Writing z = D^{1/2}x, we can rewrite the problem equivalently as
  *
  * min_z 0.5 * |z - D^{-1/2}a|^2
  * s.t.  (D^{-1/2}b)t z = r,  D^{1/2}l <= z <= D^{1/2}u
@@ -72,15 +72,14 @@ int pproj_proj(int n, double *restrict y, int *Ap, int *Ai, double *zeros,
 
 int pproj_cqk(int n, double *restrict d, double *restrict sc_a,
     double *restrict sc_b, double r, double *restrict sc_low,
-    double *restrict sc_up, int *restrict Ap, int *restrict Ai, double *x, double grad_tol)
+    double *restrict sc_up, int *restrict Ap, int *restrict Ai, double *x,
+    double grad_tol)
 {
     int i;
     int status = -1;
     double lambda[1] = {0.0};
     double rhs[1] = {r};
     PPparm Parm;
-
-    // for (i = 0; i <= n; i++) Ap[i] = i;
 
     pproj_default (&Parm) ;
     // Parm.cholmod = 0;
@@ -102,17 +101,11 @@ int pproj_cqk(int n, double *restrict d, double *restrict sc_a,
                     rhs, rhs        // L, U (bounds on constraints)
                     ) ;
 
-    if ( status != 0 )
-    {
-        status = -1;
-        goto TERMINATE;
-    }
-
     // scale solution
     for (i = 0; i < n; i++)
         x[i] /= sqrt(d[i]);
 
-    TERMINATE:
+    if ( status != 0 ) status = -1;
 
     return status;
 }
