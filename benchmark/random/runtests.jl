@@ -23,6 +23,10 @@ function get_parameters()
         arg_type = Bool
         default = true
         help = "continue previous tests?"
+        "--maxn"
+        arg_type = Int
+        default = 10^15
+        help = "maximum number of variables that solvers can be applied"
         "--comm_maxn"
         arg_type = Int
         default = 10^5
@@ -132,10 +136,22 @@ function b_cms_cqn(P, nthreads)
     end
 end
 
-# Benchmark for commercial software (CPLEX, GUROBI, Hexaly)
+# Benchmark for commercial software (CPLEX, GUROBI, MOSEK)
 function b_commercial(P, alg, nthreads)
     sol = similar(P.a)
-    b = @benchmarkable $alg($sol, $P; nthreads=$nthreads)
+    commP = CPUtoCOMM(P)
+    n = length(sol)
+    inds = collect(Cint, 0:(n-1))
+    b = @benchmarkable $alg($sol, $commP, $inds; nthreads=$nthreads)
+    time = estimatetime(b)
+    return time
+end
+
+# Benchmark for commercial software (Hexaly)
+function b_hexaly(P, nthreads)
+    sol = similar(P.a)
+    commP = CPUtoCOMM(P)
+    b = @benchmarkable hexaly_cqk!($sol, $commP; nthreads=$nthreads)
     time = estimatetime(b)
     return time
 end
@@ -280,7 +296,7 @@ function executed(results, p, id, m, nthreads)
 end
 
 # Main function
-function alltests(cont, nreps, comm_maxn)
+function alltests(cont, nreps, maxn, comm_maxn)
     nthreads = Threads.nthreads()
 
     output = joinpath(projectpath, "results", "results_random.jld2")
@@ -318,11 +334,17 @@ function alltests(cont, nreps, comm_maxn)
                         continue
                     end
 
+                    # Skip if n > maxn
+                    if (p.n > maxn)
+                        continue
+                    end
+
                     # Skip commercial solver if n > comm_maxn
                     if (p.n > comm_maxn) && (
                         contains(m.name, "cplex") ||
                         contains(m.name, "gurobi") ||
-                        contains(m.name, "hexaly")
+                        contains(m.name, "hexaly") ||
+                        contains(m.name, "mosek")
                     )
                         continue
                     end
@@ -373,7 +395,7 @@ function main(args)
     opts = get_parameters()
 
     println("===================\nRandom\n===================")
-    alltests(opts["continue"], opts["nreps"], opts["comm_maxn"])
+    alltests(opts["continue"], opts["nreps"], opts["maxn"], opts["comm_maxn"])
 
     return 0
 end

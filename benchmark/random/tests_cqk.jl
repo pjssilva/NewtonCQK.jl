@@ -103,7 +103,7 @@ if USECUDA < 32
                 "pproj",
                 identity,
                 (P, nthreads) -> b_pproj(P, nthreads),
-                (P, nthreads) -> (0, pproj_cqk(P)[2]),
+                (P, nthreads) -> (0, pproj_cqk(CPUtoPPROJ(P))[2]),
                 (P, nthreads) -> cqk_infeas(P, pproj_cqk(CPUtoPPROJ(P))[1]),
                 (P, nthreads) -> reldiff_sol(P, cqk, pproj_cqk(CPUtoPPROJ(P))[1])
                 )
@@ -116,46 +116,61 @@ if USECUDA < 32
         push!(
             CQK_METHODS,
             METHOD(
-                "cplex (barrier)",
+                "cplex",
                 identity,
                 (P, nthreads) -> b_commercial(P, cplex_cqk!, nthreads),
-                (P, nthreads) -> cplex_cqk(P)[2:3],
-                (P, nthreads) -> cqk_infeas(P, cplex_cqk(P)[1]),
-                (P, nthreads) -> reldiff_sol(P, cqk, cplex_cqk(P)[1])
+                (P, nthreads) -> cplex_cqk(CPUtoCOMM(P))[2:3],
+                (P, nthreads) -> cqk_infeas(P, cplex_cqk(CPUtoCOMM(P))[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, cplex_cqk(CPUtoCOMM(P))[1])
+            )
+        )
+    end
+
+
+    if isfile(
+        joinpath(projectpath, "third_party", "gurobi", "gurobi_cqk.so")
+    )
+        push!(
+            CQK_METHODS,
+            METHOD(
+                "gurobi",
+                identity,
+                (P, nthreads) -> b_commercial(P, gurobi_cqk!, nthreads),
+                (P, nthreads) -> gurobi_cqk(CPUtoCOMM(P))[2:3],
+                (P, nthreads) -> cqk_infeas(P, gurobi_cqk(CPUtoCOMM(P))[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, gurobi_cqk(CPUtoCOMM(P))[1])
             )
         )
     end
 
     if isfile(
-        joinpath(projectpath, "third_party", "gurobi", "gurobi_cqk.so")
+        joinpath(projectpath, "third_party", "mosek", "mosek_cqk.so")
     )
-        # method:
-        # -1=automatic, 0=primal simplex, 1=dual simplex, 2=barrier
         push!(
             CQK_METHODS,
             METHOD(
-                "gurobi (barrier)",
+                "mosek",
                 identity,
-                (P, nthreads) -> b_commercial(P, gurobi_cqk!, nthreads),
-                (P, nthreads) -> gurobi_cqk(P)[2:3],
-                (P, nthreads) -> cqk_infeas(P, gurobi_cqk(P)[1]),
-                (P, nthreads) -> reldiff_sol(P, cqk, gurobi_cqk(P)[1])
+                (P, nthreads) -> b_commercial(P, mosek_cqk!, nthreads),
+                (P, nthreads) -> mosek_cqk(CPUtoCOMM(P))[2:3],
+                (P, nthreads) -> cqk_infeas(P, mosek_cqk(CPUtoCOMM(P))[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, mosek_cqk(CPUtoCOMM(P))[1])
             )
         )
     end
 
     if isfile(
         joinpath(projectpath, "third_party", "hexaly", "hexaly_cqk.so")
-        )
+    )
         push!(
             CQK_METHODS,
             METHOD(
                 "hexaly",
                 identity,
-                (P, nthreads) -> b_commercial(P, hexaly_cqk!, nthreads),
-                (P, nthreads) -> hexaly_cqk(P)[2:3],
-                (P, nthreads) -> cqk_infeas(P, hexaly_cqk(P)[1]),
-                (P, nthreads) -> reldiff_sol(P, cqk, hexaly_cqk(P)[1])
+                (P, nthreads) -> b_hexaly(P, nthreads),
+                (P, nthreads) -> hexaly_cqk(CPUtoCOMM(P))[2:3],
+                (P, nthreads) -> cqk_infeas(P, hexaly_cqk(CPUtoCOMM(P))[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, hexaly_cqk(CPUtoCOMM(P))[1])
                 )
             )
     end

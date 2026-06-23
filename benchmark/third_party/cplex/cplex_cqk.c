@@ -3,14 +3,23 @@
 #include <ilcplex/cplex.h>
 #include <stdlib.h>
 
-int cplex_cqk(int n, double *restrict d, double *restrict a,
-    double *restrict b, double r, double *restrict low, double *restrict up,
-    double *x, int nthreads, int method, double timelimit)
+int cplex_cqk(
+   int n,
+   double *restrict d,
+   double *restrict a,
+   double *restrict b,
+   double r,
+   double *restrict low,
+   double *restrict up,
+   int *restrict inds,
+   double *x,
+   int nthreads,
+   double timelimit
+)
 {
    char     sense[1] = {'E'};
    double   rhs[1] = {r};
    int      beg[1] = {0};
-   int      *ind = NULL;
 
    CPXENVptr     env = NULL;
    CPXLPptr      lp = NULL;
@@ -18,9 +27,6 @@ int cplex_cqk(int n, double *restrict d, double *restrict a,
    int           i;
 
    int           status = -1;
-
-   ind = (int *) malloc(n*sizeof(int));
-   if (!ind) goto TERMINATE;
 
    /* Initialize the CPLEX environment */
 
@@ -31,7 +37,7 @@ int cplex_cqk(int n, double *restrict d, double *restrict a,
 
    error = CPXsetintparam (env, CPXPARAM_ScreenOutput, CPX_OFF);
    if (error) goto TERMINATE;
-   error = CPXsetintparam (env, CPXPARAM_QPMethod, method);
+   error = CPXsetintparam (env, CPXPARAM_QPMethod, 4);
    if (error) goto TERMINATE;
    error = CPXsetdblparam(env, CPXPARAM_TimeLimit, timelimit);
    if (error) goto TERMINATE;
@@ -48,12 +54,11 @@ int cplex_cqk(int n, double *restrict d, double *restrict a,
    if (!lp) goto TERMINATE;
 
    /* Add vars and the linear part of the objective */
-   for (i = 0; i < n; ++i) ind[i] = i;
    error = CPXnewcols(env, lp, n, a, low, up, NULL, NULL);
    if (error) goto TERMINATE;
 
    /* Linear constraint */
-   error = CPXaddrows(env, lp, 0, 1, n, rhs, sense, beg, ind, b, NULL, NULL);
+   error = CPXaddrows(env, lp, 0, 1, n, rhs, sense, beg, inds, b, NULL, NULL);
    if (error) goto TERMINATE;
 
    /* Quadratic terms in the objective */
@@ -73,10 +78,7 @@ int cplex_cqk(int n, double *restrict d, double *restrict a,
       error = CPXgetx (env, lp, x, 0, n-1);
       if (error) goto TERMINATE;
 
-      if (method == 4)
-         status = CPXgetbaritcnt (env, lp);
-      else
-         status = CPXgetitcnt (env, lp);
+      status = CPXgetbaritcnt (env, lp);
    }
 
 TERMINATE:
@@ -88,10 +90,6 @@ TERMINATE:
    /* Free up the CPLEX environment, if necessary */
 
    if (env != NULL) CPXcloseCPLEX (&env);
-
-   /* Free up the problem data arrays, if necessary. */
-
-   if (ind) free(ind);
 
    return status;
 }

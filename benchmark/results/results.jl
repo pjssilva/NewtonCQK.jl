@@ -45,10 +45,8 @@ alglabels = Dict(
     "cqk (SVM)"             => latexstring("\$\\texttt{NewtonCQK.jl}\$"),
     "cqk (SVM) x0"          => latexstring("\$\\texttt{NewtonCQK.jl}\$ (warm start)"),
     "cqn (SVM)"             => "CMS",
-    "cplex (barrier)"       => "CPLEX (barrier)",
-    "cplex (primal simplex)"=> "CPLEX (primal simplex)",
-    "gurobi (barrier)"      => "GUROBI (barrier)",
-    "gurobi (primal simplex)"=> "GUROBI (primal simplex)",
+    "cplex"                 => "CPLEX",
+    "gurobi"                => "GUROBI",
     "hexaly"                => "Hexaly",
     "pproj"                 => "PPROJ"
 )
@@ -613,10 +611,8 @@ function generate_all()
             base,
             [
                 "cqk (CPU, FP64)";
-                "cplex (barrier)";
-                "cplex (primal simplex)";
-                "gurobi (barrier)";
-                "gurobi (primal simplex)";
+                "cplex";
+                "gurobi";
                 "hexaly"
             ],
             title=latexstring("n = 10^{$(ceil(Int64, log10(n)))}, \\textnormal{$(ptext)}"),
@@ -670,25 +666,26 @@ function generate_all()
         "cqk (CPU, FP64)",      # our algorithm
         "cqn",                  # CMS algorithm
         minn = 10^3,
-        maxn = 10^9
+        maxn = 10^9,
+        suffix = "_CQKvsCMS"
     )
 
     ###################
     # Random, Table CQK vs commercial solvers (1 thread)
     ###################
     for alg in [
-        "cplex (barrier)";
-        "cplex (primal simplex)";
-        "gurobi (barrier)";
-        "gurobi (primal simplex)";
-        "hexaly"
+        "cplex";
+        "gurobi";
+        "hexaly";
+        "pproj"
         ]
         table_cqk_other(
             CQK_names,
             "cqk (CPU, FP64)",      # our algorithm
             alg,
             minn = 10^3,
-            maxn = 10^9
+            maxn = (alg == "pproj") ? 10^8 : 10^5,
+            suffix = "_CQKvs$(alg)"
         )
     end
 

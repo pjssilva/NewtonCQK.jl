@@ -1,7 +1,7 @@
 function cplex_cqk!(
     sol::Vector{Float64},
-    P::CQKProblem{Float64,Vector{Float64}};
-    x0 = Float64[],
+    P::CQKProblem{Float64,Vector{Float64}},
+    inds::Vector{Cint};
     nthreads = 1,
     timelimit = 10.0
 )
@@ -14,9 +14,9 @@ function cplex_cqk!(
         P.r::Cdouble,
         P.l::Ptr{Cdouble},
         P.u::Ptr{Cdouble},
+        inds::Ptr{Cint},
         sol::Ptr{Cdouble},
         nthreads::Csize_t,
-        4::Cint,
         timelimit::Cdouble
     )::Cint
     return max(res, 0), (res >= 0) ? :solved : :failed
@@ -24,13 +24,12 @@ end
 
 function cplex_cqk(
     P::CQKProblem{Float64,Vector{Float64}};
-    x0 = Float64[],
     nthreads = 1,
     timelimit = 10.0
 )
+    n = length(P.a)
     sol = similar(P.a)
-    iter, flag = cplex_cqk!(
-        sol, P, x0=x0, nthreads=nthreads, timelimit=timelimit
-    )
+    inds = collect(Cint, 0:(n-1))
+    iter, flag = cplex_cqk!(sol, P, inds; nthreads=nthreads, timelimit=timelimit)
     return sol, iter, flag
 end

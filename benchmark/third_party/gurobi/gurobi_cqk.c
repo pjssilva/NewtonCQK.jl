@@ -4,23 +4,26 @@
 #include <stdio.h>
 #include "gurobi_c.h"
 
-int gurobi_cqk(int n, double *restrict d, double *restrict a,
-    double *restrict b, double r, double *restrict low, double *restrict up,
-    double *x, int nthreads, int method, double timelimit)
+int gurobi_cqk(
+   int n,
+   double *restrict d,
+   double *restrict a,
+   double *restrict b,
+   double r,
+   double *restrict low,
+   double *restrict up,
+   int *restrict inds,
+   double *x,
+   int nthreads,
+   double timelimit
+)
 {
+  int       i;
   GRBenv   *env   = NULL;
   GRBmodel *model = NULL;
   int       error = 0;
-  int       *ind;
   int       optimstatus;
   int       status = -1;
-  int       i;
-
-  ind = (int *) malloc(n*sizeof(int));
-  if (!ind) goto QUIT;
-
-  // The same vector will be used to index vars in the obj and in the const
-  for (i = 0; i < n; ++i) ind[i] = i;
 
   /* Create environment */
 
@@ -30,7 +33,7 @@ int gurobi_cqk(int n, double *restrict d, double *restrict a,
 
   /* Parameters */
 
-  error = GRBsetintparam(env, "Method", method);
+  error = GRBsetintparam(env, "Method", 2);
   if (error) goto QUIT;
   error = GRBsetdblparam(env, "TimeLimit", timelimit);
   if (error) goto QUIT;
@@ -56,12 +59,12 @@ int gurobi_cqk(int n, double *restrict d, double *restrict a,
 
   /* Quadratic objective terms */
 
-  error = GRBaddqpterms(model, n, ind, ind, d);
+  error = GRBaddqpterms(model, n, inds, inds, d);
   if (error) goto QUIT;
 
   /* Linear constraint */
 
-  error = GRBaddconstr(model, n, ind, b, GRB_EQUAL, r, NULL);
+  error = GRBaddconstr(model, n, inds, b, GRB_EQUAL, r, NULL);
   if (error) goto QUIT;
 
   /* Optimize model */
@@ -90,8 +93,6 @@ int gurobi_cqk(int n, double *restrict d, double *restrict a,
 
   /* Free environment */
   GRBfreeenv(env);
-
-  if (ind) free(ind);
 
   return status;
 }

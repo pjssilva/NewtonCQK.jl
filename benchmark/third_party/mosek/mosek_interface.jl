@@ -1,4 +1,4 @@
-function gurobi_cqk!(
+function mosek_cqk!(
     sol::Vector{Float64},
     P::CQKProblem{Float64,Vector{Float64}},
     inds::Vector{Cint};
@@ -6,7 +6,7 @@ function gurobi_cqk!(
     timelimit = 10.0
 )
     n = length(P.a)
-    res = @ccall joinpath(dirname(@__FILE__), "gurobi_cqk.so").gurobi_cqk(
+    res = @ccall joinpath(dirname(@__FILE__), "mosek_cqk.so").mosek_cqk(
         n::Csize_t,
         P.d::Ptr{Cdouble},
         P.a::Ptr{Cdouble},
@@ -22,7 +22,7 @@ function gurobi_cqk!(
     return max(res, 0), (res >= 0) ? :solved : :failed
 end
 
-function gurobi_cqk(
+function mosek_cqk(
     P::CQKProblem{Float64,Vector{Float64}};
     nthreads = 1,
     timelimit = 10.0
@@ -30,6 +30,6 @@ function gurobi_cqk(
     n = length(P.a)
     sol = similar(P.a)
     inds = collect(Cint, 0:(n-1))
-    iter, flag = gurobi_cqk!(sol, P, inds; nthreads=nthreads, timelimit=timelimit)
+    iter, flag = mosek_cqk!(sol, P, inds; nthreads=nthreads, timelimit=timelimit)
     return sol, iter, flag
 end

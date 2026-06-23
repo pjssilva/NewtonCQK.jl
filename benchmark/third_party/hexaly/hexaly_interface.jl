@@ -1,7 +1,6 @@
 function hexaly_cqk!(
     sol::Vector{Float64},
     P::CQKProblem{Float64,Vector{Float64}};
-    x0 = Float64[],
     nthreads = 1,
     timelimit = 10
 )
@@ -23,7 +22,6 @@ end
 
 function hexaly_cqk(
     P::CQKProblem{Float64,Vector{Float64}};
-    x0 = Float64[],
     nthreads = 1,
     timelimit = 10
 )

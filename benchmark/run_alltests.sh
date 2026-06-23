@@ -10,6 +10,7 @@ threads="1 2 4 8 16 24 48"
 export cplex_path="/opt/ibm/ILOG/CPLEX_Studio2211/cplex"
 export gurobi_path="/opt/gurobi1302/linux64"
 export hexaly_path="/opt/hexaly_14_5"
+export mosek_path="/opt/mosek/11.2"
 
 # Compile third-party software
 echo "Compiling third-party software..."
@@ -30,6 +31,11 @@ if [ -d $hexaly_path ]; then
     (cd third_party/hexaly/ && make)
 else
     echo "Invalid Hexaly path. Adjust 'hexaly_path' to your instalation path if you want to use Hexaly"
+fi
+if [ -d $mosek_path ]; then
+    (cd third_party/mosek/ && make)
+else
+    echo "Invalid MOSEK path. Adjust 'mosek_path' to your instalation path if you want to use MOSEK"
 fi
 
 # Set 1 thread for BLAS (for third-party C code)
