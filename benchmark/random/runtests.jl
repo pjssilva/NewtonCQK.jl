@@ -137,12 +137,10 @@ function b_cms_cqn(P, nthreads)
 end
 
 # Benchmark for commercial software (CPLEX, GUROBI, MOSEK)
-function b_commercial(P, alg, nthreads)
+# M is the pre-allocated model
+function b_commercial(P, alg, M::Ptr{Cvoid})
     sol = similar(P.a)
-    commP = CPUtoCOMM(P)
-    n = length(sol)
-    inds = collect(Cint, 0:(n-1))
-    b = @benchmarkable $alg($sol, $commP, $inds; nthreads=$nthreads)
+    b = @benchmarkable $alg($M, $sol, $P)
     time = estimatetime(b)
     return time
 end
@@ -150,8 +148,7 @@ end
 # Benchmark for commercial software (Hexaly)
 function b_hexaly(P, nthreads)
     sol = similar(P.a)
-    commP = CPUtoCOMM(P)
-    b = @benchmarkable hexaly_cqk!($sol, $commP; nthreads=$nthreads)
+    b = @benchmarkable hexaly_cqk!($sol, $P; nthreads=$nthreads)
     time = estimatetime(b)
     return time
 end

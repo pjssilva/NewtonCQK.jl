@@ -118,7 +118,11 @@ if USECUDA < 32
             METHOD(
                 "cplex",
                 identity,
-                (P, nthreads) -> b_commercial(P, cplex_cqk!, nthreads),
+                (P, nthreads) -> begin
+                    M = cplex_init(P; nthreads=nthreads)
+                    b_commercial(P, cplex_cqk!, M)
+                    cplex_free(M)
+                end,
                 (P, nthreads) -> cplex_cqk(P)[2:3],
                 (P, nthreads) -> cqk_infeas(P, cplex_cqk(P)[1]),
                 (P, nthreads) -> reldiff_sol(P, cqk, cplex_cqk(P)[1])
@@ -135,10 +139,14 @@ if USECUDA < 32
             METHOD(
                 "gurobi",
                 identity,
-                (P, nthreads) -> b_commercial(P, gurobi_cqk!, nthreads),
-                (P, nthreads) -> gurobi_cqk(CPUtoCOMM(P))[2:3],
-                (P, nthreads) -> cqk_infeas(P, gurobi_cqk(CPUtoCOMM(P))[1]),
-                (P, nthreads) -> reldiff_sol(P, cqk, gurobi_cqk(CPUtoCOMM(P))[1])
+                (P, nthreads) -> begin
+                    M = gurobi_init(P; nthreads=nthreads)
+                    b_commercial(P, gurobi_cqk!, M)
+                    gurobi_free(M)
+                end,
+                (P, nthreads) -> gurobi_cqk(P)[2:3],
+                (P, nthreads) -> cqk_infeas(P, gurobi_cqk(P)[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, gurobi_cqk(P)[1])
             )
         )
     end
@@ -151,10 +159,14 @@ if USECUDA < 32
             METHOD(
                 "mosek",
                 identity,
-                (P, nthreads) -> b_commercial(P, mosek_cqk!, nthreads),
-                (P, nthreads) -> mosek_cqk(CPUtoCOMM(P))[2:3],
-                (P, nthreads) -> cqk_infeas(P, mosek_cqk(CPUtoCOMM(P))[1]),
-                (P, nthreads) -> reldiff_sol(P, cqk, mosek_cqk(CPUtoCOMM(P))[1])
+                (P, nthreads) -> begin
+                    M = mosek_init(P; nthreads=nthreads)
+                    b_commercial(P, mosek_cqk!, M)
+                    mosek_free(M)
+                end,
+                (P, nthreads) -> mosek_cqk(P)[2:3],
+                (P, nthreads) -> cqk_infeas(P, mosek_cqk(P)[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, mosek_cqk(P)[1])
             )
         )
     end
@@ -168,9 +180,9 @@ if USECUDA < 32
                 "hexaly",
                 identity,
                 (P, nthreads) -> b_hexaly(P, nthreads),
-                (P, nthreads) -> hexaly_cqk(CPUtoCOMM(P))[2:3],
-                (P, nthreads) -> cqk_infeas(P, hexaly_cqk(CPUtoCOMM(P))[1]),
-                (P, nthreads) -> reldiff_sol(P, cqk, hexaly_cqk(CPUtoCOMM(P))[1])
+                (P, nthreads) -> hexaly_cqk(P)[2:3],
+                (P, nthreads) -> cqk_infeas(P, hexaly_cqk(P)[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, hexaly_cqk(P)[1])
                 )
             )
     end

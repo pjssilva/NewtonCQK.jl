@@ -34,52 +34,56 @@ GUROBI_model *GUROBI_model_create(
   int i;
   int error = 0;
 
-  model->inds = malloc(n * sizeof(int));
-  if (!model->inds) goto QUIT;
-
-  for (i = 0; i < n; ++i) model->inds[i] = i;
-
   /* Create environment */
   error = GRBemptyenv(&model->env);
-  if (error) goto QUIT;
+  if (error) goto ERROR;
 
   /* Parameters */
+  error = GRBsetintparam(model->env, "Seed", 0);
+  if (error) goto ERROR;
+  error = GRBsetintparam(model->env, "Crossover", 0);
+  if (error) goto ERROR;
   error = GRBsetintparam(model->env, "Method", 2);
-  if (error) goto QUIT;
+  if (error) goto ERROR;
   error = GRBsetdblparam(model->env, "TimeLimit", timelimit);
-  if (error) goto QUIT;
+  if (error) goto ERROR;
   error = GRBsetintparam(model->env, "ScaleFlag", 0);
-  if (error) goto QUIT;
+  if (error) goto ERROR;
   error = GRBsetintparam(model->env, "Presolve", 0);
-  if (error) goto QUIT;
+  if (error) goto ERROR;
   error = GRBsetintparam(model->env, "Threads", nthreads);
-  if (error) goto QUIT;
+  if (error) goto ERROR;
   error = GRBsetintparam(model->env, "OutputFlag", 0);
-  if (error) goto QUIT;
+  if (error) goto ERROR;
   // GRBsetdblparam(GRBstartenv, "BarConvTol", 1e-8);     // Barrier convergence tolerance (def 1e-8)
   // GRBsetdblparam(GRBstartenv, "FeasibilityTol" 1e-6);  // Primal feasibility tolerance (def 1e-6)
 
   /* Start environment */
   error = GRBstartenv(model->env);
-  if (error) goto QUIT;
+  if (error) goto ERROR;
 
   /* Create the model */
+
+  model->inds = malloc(n * sizeof(int));
+  if (!model->inds) goto ERROR;
+
+  for (i = 0; i < n; ++i) model->inds[i] = i;
 
   error = GRBnewmodel(
     model->env, &model->model, "cqk", n, NULL, low, up, NULL, NULL
   );
-  if (error) goto QUIT;
+  if (error) goto ERROR;
   /* Linear constraint */
 
   error = GRBaddconstr(model->model, n, model->inds, b, GRB_EQUAL, r, NULL);
-  if (error) goto QUIT;
+  if (error) goto ERROR;
 
   error = GRBupdatemodel(model->model);
-  if (error) goto QUIT;
+  if (error) goto ERROR;
 
   return model;
 
-  QUIT:
+  ERROR:
 
   // Print error message
   printf("%s\n", GRBgeterrormsg(model->env));

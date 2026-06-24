@@ -37,47 +37,47 @@ CPLEX_model *CPLEX_model_create(
    /* Initialize the CPLEX environment */
 
    model->env = CPXopenCPLEX (&error);
-   if (model->env == NULL) goto TERMINATE;
+   if (model->env == NULL) goto ERROR;
 
    /* Parameters */
 
    error = CPXsetintparam (model->env, CPXPARAM_ScreenOutput, CPX_OFF);
-   if (error) goto TERMINATE;
+   if (error) goto ERROR;
    error = CPXsetintparam (model->env, CPXPARAM_QPMethod, 4);
-   if (error) goto TERMINATE;
+   if (error) goto ERROR;
    error = CPXsetdblparam(model->env, CPXPARAM_TimeLimit, timelimit);
-   if (error) goto TERMINATE;
+   if (error) goto ERROR;
    error = CPXsetdblparam(model->env, CPXPARAM_Barrier_ConvergeTol, 1e-8); // relative
-   if (error) goto TERMINATE;
+   if (error) goto ERROR;
    error = CPXsetintparam(model->env, CPXPARAM_Preprocessing_Presolve, CPX_OFF);
-   if (error) goto TERMINATE;
+   if (error) goto ERROR;
    error = CPXsetintparam(model->env, CPXPARAM_Threads, nthreads);
-   if (error) goto TERMINATE;
+   if (error) goto ERROR;
    error = CPXsetintparam(model->env, CPXPARAM_Advance, 0);
-   if (error) goto TERMINATE;
+   if (error) goto ERROR;
 
    /* Create the problem. */
 
    model->lp = CPXcreateprob (model->env, &error, "cqk");
-   if (!model->lp) goto TERMINATE;
+   if (!model->lp) goto ERROR;
 
    /* Add vars */
    error = CPXnewcols(model->env, model->lp, n, NULL, low, up, NULL, NULL);
-   if (error) goto TERMINATE;
+   if (error) goto ERROR;
 
    /* Linear constraint */
    error = CPXnewrows(model->env, model->lp, 1, rhs, sense, NULL, NULL);
-   if (error) goto TERMINATE;
+   if (error) goto ERROR;
 
    for (i = 0; i < n; ++i)
    {
       error = CPXchgcoef(model->env, model->lp, 0, i, b[i]);
-      if (error) goto TERMINATE;
+      if (error) goto ERROR;
    }
 
    return model;
 
-   TERMINATE:
+   ERROR:
 
    CPLEX_model_free(model);
 
@@ -100,27 +100,27 @@ int cplex_cqk(
    {
       /* Linear terms in the objective */
       error = CPXchgcoef(model->env, model->lp, -1, i, -a[i]);
-      if (error) goto TERMINATE;
+      if (error) goto QUIT;
 
       /* Quadratic terms in the objective */
       error = CPXchgqpcoef(model->env, model->lp, i, i, d[i]);
-      if (error) goto TERMINATE;
+      if (error) goto QUIT;
    }
 
    /* Optimize the problem and obtain solution. */
 
    error = CPXqpopt (model->env, model->lp);
-   if (error) goto TERMINATE;
+   if (error) goto QUIT;
 
    if (CPXgetstat(model->env, model->lp) == CPX_STAT_OPTIMAL)
    {
       error = CPXgetx (model->env, model->lp, x, 0, n-1);
-      if (error) goto TERMINATE;
+      if (error) goto QUIT;
 
       status = CPXgetbaritcnt (model->env, model->lp);
    }
 
-   TERMINATE:
+   QUIT:
 
    return status;
 }

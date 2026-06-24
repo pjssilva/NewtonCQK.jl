@@ -63,7 +63,7 @@ extern "C" int hexaly_cqk(int n, double *__restrict d, double *__restrict a,
 
         for (int i = 0; i < n; ++i)
         {
-            HxExpression lterm = a[i] * y[i];
+            HxExpression lterm = -a[i] * y[i];
             obj.addOperand(lterm);
         }
 

@@ -36,20 +36,6 @@ function F64toF32(P::Vector)
     return Float32.(P)
 end
 
-# Multiply the linear term P.a in the obj function by -1 to apply commercial
-# solvers, as they constructs the quadratic program explicitly
-function CPUtoCOMM(P::CQKProblem)
-    sqrtd = sqrt.(P.d)
-    return CQKProblem(
-        Cdouble.(P.d),
-        Cdouble.(-P.a),
-        Cdouble.(P.b),
-        Cdouble(P.r),
-        Cdouble.(P.l),
-        Cdouble.(P.u)
-    )
-end
-
 # Scale problems to apply PPROJ
 function CPUtoPPROJ(P::CQKProblem)
     sqrtd = sqrt.(P.d)

@@ -51,7 +51,6 @@ function gurobi_cqk(
     nthreads = 1,
     timelimit = 10.0
 )
-    n = length(P.a)
     sol = similar(P.a)
     gurobi_pointer = gurobi_init(P, nthreads=nthreads, timelimit=timelimit)
     iter, flag = gurobi_cqk!(gurobi_pointer, sol, P)
