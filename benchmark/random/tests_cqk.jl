@@ -120,8 +120,9 @@ if USECUDA < 32
                 identity,
                 (P, nthreads) -> begin
                     M = cplex_init(P; nthreads=nthreads)
-                    b_commercial(P, cplex_cqk!, M)
+                    time = b_commercial(P, cplex_cqk!, M)
                     cplex_free(M)
+                    return time
                 end,
                 (P, nthreads) -> cplex_cqk(P)[2:3],
                 (P, nthreads) -> cqk_infeas(P, cplex_cqk(P)[1]),
@@ -141,8 +142,9 @@ if USECUDA < 32
                 identity,
                 (P, nthreads) -> begin
                     M = gurobi_init(P; nthreads=nthreads)
-                    b_commercial(P, gurobi_cqk!, M)
+                    time = b_commercial(P, gurobi_cqk!, M)
                     gurobi_free(M)
+                    return time
                 end,
                 (P, nthreads) -> gurobi_cqk(P)[2:3],
                 (P, nthreads) -> cqk_infeas(P, gurobi_cqk(P)[1]),
@@ -161,8 +163,9 @@ if USECUDA < 32
                 identity,
                 (P, nthreads) -> begin
                     M = mosek_init(P; nthreads=nthreads)
-                    b_commercial(P, mosek_cqk!, M)
+                    time = b_commercial(P, mosek_cqk!, M)
                     mosek_free(M)
+                    return time
                 end,
                 (P, nthreads) -> mosek_cqk(P)[2:3],
                 (P, nthreads) -> cqk_infeas(P, mosek_cqk(P)[1]),

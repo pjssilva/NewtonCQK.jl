@@ -50,14 +50,12 @@ need to add to the system environment variable `LD_LIBRARY_PATH` (or equivalent)
 the paths to the solvers libraries. For example, if the solvers are placed in
 the `/opt` directory, you can add to your `$HOME/.bashrc` (or equivalent)
 something like that:
-
 ```bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/ibm/ILOG/CPLEX_Studio2211/cplex/bin/x86-64_linux/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/ILOG/CPLEX_Studio2222/cplex/bin/x86-64_linux/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/gurobi1302/linux64/lib
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/mosek/11.2/tools/platform/linux64x86/bin
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/hexaly_14_5/bin
 ```
-
 Also, solvers may require environment variables pointing to their license files.
 See the documentation of each solver. For example, Gurobi 13.0.2 and MOSEK 11.2
 require the environment variables `GRB_LICENSE_FILE` and `MOSEKLM_LICENSE_FILE`,

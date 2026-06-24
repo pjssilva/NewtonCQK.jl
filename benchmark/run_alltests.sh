@@ -7,10 +7,10 @@ juliacmd="julia-1.10"
 threads="1 2 4 8 16 24 48"
 
 # Paths of commercial solvers
-export cplex_path="/opt/ibm/ILOG/CPLEX_Studio2211/cplex"
-export gurobi_path="/opt/gurobi1302/linux64"
+export cplex_path="$HOME/ibm/ILOG/CPLEX_Studio2211/cplex"
+export gurobi_path="$HOME/gurobi1302/linux64"
 export hexaly_path="/opt/hexaly_14_5"
-export mosek_path="/opt/mosek/11.2"
+export mosek_path="$HOME/mosek/11.2"
 
 # Compile third-party software
 echo "Compiling third-party software..."
