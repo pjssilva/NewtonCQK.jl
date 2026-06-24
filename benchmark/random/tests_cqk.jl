@@ -119,9 +119,9 @@ if USECUDA < 32
                 "cplex",
                 identity,
                 (P, nthreads) -> b_commercial(P, cplex_cqk!, nthreads),
-                (P, nthreads) -> cplex_cqk(CPUtoCOMM(P))[2:3],
-                (P, nthreads) -> cqk_infeas(P, cplex_cqk(CPUtoCOMM(P))[1]),
-                (P, nthreads) -> reldiff_sol(P, cqk, cplex_cqk(CPUtoCOMM(P))[1])
+                (P, nthreads) -> cplex_cqk(P)[2:3],
+                (P, nthreads) -> cqk_infeas(P, cplex_cqk(P)[1]),
+                (P, nthreads) -> reldiff_sol(P, cqk, cplex_cqk(P)[1])
             )
         )
     end

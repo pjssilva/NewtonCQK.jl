@@ -4,95 +4,141 @@
 #include <stdio.h>
 #include "gurobi_c.h"
 
-int gurobi_cqk(
-   int n,
-   double *restrict d,
-   double *restrict a,
-   double *restrict b,
-   double r,
-   double *restrict low,
-   double *restrict up,
-   int *restrict inds,
-   double *x,
-   int nthreads,
-   double timelimit
+typedef struct {
+  GRBenv    *env;
+  GRBmodel  *model;
+  int       *inds;
+} GUROBI_model;
+
+void GUROBI_model_free(GUROBI_model *model)
+{
+  GRBfreemodel(model->model);
+  GRBfreeenv(model->env);
+  if (model->inds) free(model->inds);
+  if (model) free(model);
+  model = NULL;
+}
+
+GUROBI_model *GUROBI_model_create(
+  int n,
+  double *restrict b,
+  double r,
+  double *restrict low,
+  double *restrict up,
+  int nthreads,
+  double timelimit
 )
 {
-  int       i;
-  GRBenv   *env   = NULL;
-  GRBmodel *model = NULL;
-  int       error = 0;
-  int       optimstatus;
-  int       status = -1;
+  GUROBI_model *model = malloc(sizeof(GUROBI_model));
+
+  int i;
+  int error = 0;
+
+  model->inds = malloc(n * sizeof(int));
+  if (!model->inds) goto QUIT;
+
+  for (i = 0; i < n; ++i) model->inds[i] = i;
 
   /* Create environment */
-
-  // error = GRBloadenv(&env, NULL);
-  error = GRBemptyenv(&env);
+  error = GRBemptyenv(&model->env);
   if (error) goto QUIT;
 
   /* Parameters */
-
-  error = GRBsetintparam(env, "Method", 2);
+  error = GRBsetintparam(model->env, "Method", 2);
   if (error) goto QUIT;
-  error = GRBsetdblparam(env, "TimeLimit", timelimit);
+  error = GRBsetdblparam(model->env, "TimeLimit", timelimit);
   if (error) goto QUIT;
-  error = GRBsetintparam(env, "ScaleFlag", 0);
+  error = GRBsetintparam(model->env, "ScaleFlag", 0);
   if (error) goto QUIT;
-  error = GRBsetintparam(env, "Presolve", 0);
+  error = GRBsetintparam(model->env, "Presolve", 0);
   if (error) goto QUIT;
-  error = GRBsetintparam(env, "Threads", nthreads);
+  error = GRBsetintparam(model->env, "Threads", nthreads);
   if (error) goto QUIT;
-  error = GRBsetintparam(env, "OutputFlag", 0);
+  error = GRBsetintparam(model->env, "OutputFlag", 0);
   if (error) goto QUIT;
-  // GRBsetdblparam(env, "BarConvTol", 1e-8);     // Barrier convergence tolerance (def 1e-8)
-  // GRBsetdblparam(env, "FeasibilityTol" 1e-6);  // Primal feasibility tolerance (def 1e-6)
+  // GRBsetdblparam(GRBstartenv, "BarConvTol", 1e-8);     // Barrier convergence tolerance (def 1e-8)
+  // GRBsetdblparam(GRBstartenv, "FeasibilityTol" 1e-6);  // Primal feasibility tolerance (def 1e-6)
 
   /* Start environment */
-  error = GRBstartenv(env);
+  error = GRBstartenv(model->env);
   if (error) goto QUIT;
 
   /* Create the model */
 
-  error = GRBnewmodel(env, &model, "cqk", n, a, low, up, NULL, NULL);
+  error = GRBnewmodel(
+    model->env, &model->model, "cqk", n, NULL, low, up, NULL, NULL
+  );
+  if (error) goto QUIT;
+  /* Linear constraint */
+
+  error = GRBaddconstr(model->model, n, model->inds, b, GRB_EQUAL, r, NULL);
+  if (error) goto QUIT;
+
+  error = GRBupdatemodel(model->model);
+  if (error) goto QUIT;
+
+  return model;
+
+  QUIT:
+
+  // Print error message
+  printf("%s\n", GRBgeterrormsg(model->env));
+
+  GUROBI_model_free(model);
+
+  return NULL;
+}
+
+int gurobi_cqk(
+  GUROBI_model *model,
+  int n,
+  double *restrict d,
+  double *restrict a,
+  double *x
+)
+{
+  int       i;
+  int       error = 0;
+  int       optimstatus;
+  int       status = -1;
+
+  /* Reset previous solution information */
+  error = GRBreset(model->model, 1);
   if (error) goto QUIT;
 
   /* Quadratic objective terms */
-
-  error = GRBaddqpterms(model, n, inds, inds, d);
+  error = GRBaddqpterms(model->model, n, model->inds, model->inds, d);
   if (error) goto QUIT;
 
-  /* Linear constraint */
+  /* Linear objective terms */
+  for (i = 0; i < n; ++i)
+  {
+    error = GRBsetdblattrelement(model->model, "Obj", i, -a[i]);
+    if (error) goto QUIT;
+  }
 
-  error = GRBaddconstr(model, n, inds, b, GRB_EQUAL, r, NULL);
+  /* Update model */
+  error = GRBupdatemodel(model->model);
   if (error) goto QUIT;
 
   /* Optimize model */
-
-  error = GRBoptimize(model);
+  error = GRBoptimize(model->model);
   if (error) goto QUIT;
 
   /* Capture solution information */
-
-  error = GRBgetintattr(model, GRB_INT_ATTR_STATUS, &optimstatus);
+  error = GRBgetintattr(model->model, GRB_INT_ATTR_STATUS, &optimstatus);
   if (error) goto QUIT;
 
   if (optimstatus == GRB_OPTIMAL)
   {
-    error = GRBgetdblattrarray(model, GRB_DBL_ATTR_X, 0, n, x);
+    error = GRBgetdblattrarray(model->model, GRB_DBL_ATTR_X, 0, n, x);
     if (error) goto QUIT;
 
-    error = GRBgetintattr(model, GRB_INT_ATTR_BARITERCOUNT, &status);
+    error = GRBgetintattr(model->model, GRB_INT_ATTR_BARITERCOUNT, &status);
     if (error) goto QUIT;
   }
 
   QUIT:
-
-  /* Free model */
-  GRBfreemodel(model);
-
-  /* Free environment */
-  GRBfreeenv(env);
 
   return status;
 }

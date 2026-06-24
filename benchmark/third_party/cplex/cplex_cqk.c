@@ -3,93 +3,124 @@
 #include <ilcplex/cplex.h>
 #include <stdlib.h>
 
-int cplex_cqk(
+typedef struct {
+   CPXENVptr env;
+   CPXLPptr  lp;
+} CPLEX_model;
+
+void CPLEX_model_free(CPLEX_model *model)
+{
+   if (model->lp) CPXfreeprob (model->env, &model->lp);
+   if (model->env) CPXcloseCPLEX (&model->env);
+   if (model) free(model);
+   model = NULL;
+}
+
+CPLEX_model *CPLEX_model_create(
    int n,
-   double *restrict d,
-   double *restrict a,
    double *restrict b,
    double r,
    double *restrict low,
    double *restrict up,
-   int *restrict inds,
-   double *x,
    int nthreads,
    double timelimit
 )
 {
+   CPLEX_model *model = malloc(sizeof(CPLEX_model));
+
+   int      i;
    char     sense[1] = {'E'};
    double   rhs[1] = {r};
    int      beg[1] = {0};
-
-   CPXENVptr     env = NULL;
-   CPXLPptr      lp = NULL;
-   int           error;
-   int           i;
-
-   int           status = -1;
+   int      error, status = -1;
 
    /* Initialize the CPLEX environment */
 
-   env = CPXopenCPLEX (&error);
-   if (env == NULL) goto TERMINATE;
+   model->env = CPXopenCPLEX (&error);
+   if (model->env == NULL) goto TERMINATE;
 
    /* Parameters */
 
-   error = CPXsetintparam (env, CPXPARAM_ScreenOutput, CPX_OFF);
+   error = CPXsetintparam (model->env, CPXPARAM_ScreenOutput, CPX_OFF);
    if (error) goto TERMINATE;
-   error = CPXsetintparam (env, CPXPARAM_QPMethod, 4);
+   error = CPXsetintparam (model->env, CPXPARAM_QPMethod, 4);
    if (error) goto TERMINATE;
-   error = CPXsetdblparam(env, CPXPARAM_TimeLimit, timelimit);
+   error = CPXsetdblparam(model->env, CPXPARAM_TimeLimit, timelimit);
    if (error) goto TERMINATE;
-   error = CPXsetdblparam(env, CPXPARAM_Barrier_ConvergeTol, 1e-8); // relative
+   error = CPXsetdblparam(model->env, CPXPARAM_Barrier_ConvergeTol, 1e-8); // relative
    if (error) goto TERMINATE;
-   error = CPXsetintparam(env, CPXPARAM_Preprocessing_Presolve, CPX_OFF);
+   error = CPXsetintparam(model->env, CPXPARAM_Preprocessing_Presolve, CPX_OFF);
    if (error) goto TERMINATE;
-   error = CPXsetintparam(env, CPXPARAM_Threads, nthreads);
+   error = CPXsetintparam(model->env, CPXPARAM_Threads, nthreads);
+   if (error) goto TERMINATE;
+   error = CPXsetintparam(model->env, CPXPARAM_Advance, 0);
    if (error) goto TERMINATE;
 
    /* Create the problem. */
 
-   lp = CPXcreateprob (env, &error, "cqk");
-   if (!lp) goto TERMINATE;
+   model->lp = CPXcreateprob (model->env, &error, "cqk");
+   if (!model->lp) goto TERMINATE;
 
-   /* Add vars and the linear part of the objective */
-   error = CPXnewcols(env, lp, n, a, low, up, NULL, NULL);
+   /* Add vars */
+   error = CPXnewcols(model->env, model->lp, n, NULL, low, up, NULL, NULL);
    if (error) goto TERMINATE;
 
    /* Linear constraint */
-   error = CPXaddrows(env, lp, 0, 1, n, rhs, sense, beg, inds, b, NULL, NULL);
+   error = CPXnewrows(model->env, model->lp, 1, rhs, sense, NULL, NULL);
    if (error) goto TERMINATE;
 
-   /* Quadratic terms in the objective */
    for (i = 0; i < n; ++i)
    {
-      error = CPXchgqpcoef(env, lp, i, i, d[i]);
+      error = CPXchgcoef(model->env, model->lp, 0, i, b[i]);
+      if (error) goto TERMINATE;
+   }
+
+   return model;
+
+   TERMINATE:
+
+   CPLEX_model_free(model);
+
+   return NULL;
+}
+
+int cplex_cqk(
+   CPLEX_model *model,
+   int n,
+   double *restrict d,
+   double *restrict a,
+   double *x
+)
+{
+   int i;
+   int error;
+   int status = -1;
+
+   for (i = 0; i < n; ++i)
+   {
+      /* Linear terms in the objective */
+      error = CPXchgcoef(model->env, model->lp, -1, i, -a[i]);
+      if (error) goto TERMINATE;
+
+      /* Quadratic terms in the objective */
+      error = CPXchgqpcoef(model->env, model->lp, i, i, d[i]);
       if (error) goto TERMINATE;
    }
 
    /* Optimize the problem and obtain solution. */
 
-   error = CPXqpopt (env, lp);
+   error = CPXqpopt (model->env, model->lp);
    if (error) goto TERMINATE;
 
-   if (CPXgetstat(env, lp) == CPX_STAT_OPTIMAL)
+   if (CPXgetstat(model->env, model->lp) == CPX_STAT_OPTIMAL)
    {
-      error = CPXgetx (env, lp, x, 0, n-1);
+      error = CPXgetx (model->env, model->lp, x, 0, n-1);
       if (error) goto TERMINATE;
 
-      status = CPXgetbaritcnt (env, lp);
+      status = CPXgetbaritcnt (model->env, model->lp);
    }
 
-TERMINATE:
-
-   /* Free up the problem as allocated by CPXcreateprob, if necessary */
-
-   if (lp != NULL) CPXfreeprob (env, &lp);
-
-   /* Free up the CPLEX environment, if necessary */
-
-   if (env != NULL) CPXcloseCPLEX (&env);
+   TERMINATE:
 
    return status;
 }
