@@ -54,5 +54,6 @@ function mosek_cqk(
     sol = similar(P.a)
     mosek_pointer = mosek_init(P, nthreads=nthreads, timelimit=timelimit)
     iter, flag = mosek_cqk!(mosek_pointer, sol, P)
+    mosek_free(mosek_pointer)
     return sol, iter, flag
 end

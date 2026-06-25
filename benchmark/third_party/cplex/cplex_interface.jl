@@ -55,5 +55,6 @@ function cplex_cqk(
     sol = similar(P.a)
     cplex_pointer = cplex_init(P, nthreads=nthreads, timelimit=timelimit)
     iter, flag = cplex_cqk!(cplex_pointer, sol, P)
+    cplex_free(cplex_pointer)
     return sol, iter, flag
 end
