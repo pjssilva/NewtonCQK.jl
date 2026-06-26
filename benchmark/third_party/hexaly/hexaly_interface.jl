@@ -27,7 +27,7 @@ function hexaly_cqk(
 )
     sol = similar(P.a)
     iter, flag = hexaly_cqk!(
-        sol, P, x0=x0, nthreads=nthreads, timelimit=timelimit
+        sol, P, nthreads=nthreads, timelimit=timelimit
     )
     return sol, iter, flag
 end
