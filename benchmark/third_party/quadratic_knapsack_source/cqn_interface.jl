@@ -1,3 +1,5 @@
+const libnewtonproj = joinpath(dirname(@__FILE__), "lib", "newtonproj.so")
+
 function cms_cqn!(
     sol::Vector{Float64},
     P::CQKProblem{Float64,Vector{Float64}};
@@ -5,7 +7,7 @@ function cms_cqn!(
 )
     n = length(P.a)
     if isempty(x0)
-        res = @ccall joinpath(dirname(@__FILE__), "lib", "newtonproj.so").newton_cqn(
+        res = @ccall libnewtonproj.newton_cqn(
             n::Cint,
             P.d::Ptr{Cdouble},
             P.a::Ptr{Cdouble},
@@ -17,7 +19,7 @@ function cms_cqn!(
             C_NULL::Ptr{Cvoid}
         )::Cint
     else
-        res = @ccall joinpath(dirname(@__FILE__), "lib", "newtonproj.so").newton_cqn(
+        res = @ccall libnewtonproj.newton_cqn(
             n::Cint,
             P.d::Ptr{Cdouble},
             P.a::Ptr{Cdouble},
