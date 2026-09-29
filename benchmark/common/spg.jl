@@ -128,7 +128,7 @@ function spg(n, f, g!, proj!;
 
         if fx < fxbest
             xbest .= x
-            fbest = fx
+            fxbest = fx
         end
     end
 
