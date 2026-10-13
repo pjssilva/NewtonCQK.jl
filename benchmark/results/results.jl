@@ -45,8 +45,8 @@ alglabels = Dict(
     "cqk (SVM)"             => latexstring("\$\\texttt{NewtonCQK.jl}\$"),
     "cqk (SVM) x0"          => latexstring("\$\\texttt{NewtonCQK.jl}\$ (warm start)"),
     "cqn (SVM)"             => "CMS",
-    "cplex"                 => "CPLEX",
-    "gurobi"                => "GUROBI",
+    "cplex (barrier)"       => "CPLEX",
+    "gurobi (barrier)"      => "GUROBI",
     "hexaly"                => "Hexaly",
     "pproj"                 => "PPROJ"
 )
@@ -226,25 +226,35 @@ function table_cqk_other(
     timefactor=1e-6,
     timeformat="%8.2e",
     lfformat="%8.4lf",
+    relative=false,
+    altalgth=1,
     filenames=joinpath(projectpath, "results", "results_random.jld2")
 )
     fmt_time = generate_formatter(timeformat)
     fmt_lf = generate_formatter(lfformat)
 
-    outfile = joinpath(output_path, "table_cqk$(suffix).tex")
+    if relative
+        outfile = joinpath(output_path, "table_cqk_relative$(suffix).tex")
+    else
+        outfile = joinpath(output_path, "table_cqk$(suffix).tex")
+    end
 
     res = read_results(filenames)
     res_tmp = filter_results(res; instance=inst[1])
     ns = sort(Int64.(unique(res_tmp[:,:n])))
 
     tex = open(outfile, "w")
-    write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}l$(repeat("ll", length(inst)))@{\\extracolsep\\fill}}\n")
+    write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}l$(repeat(relative ? "ll" : "l", length(inst)))@{\\extracolsep\\fill}}\n")
     write(tex, "\\hline\n")
     for p in inst
-        write(tex, " & \\multicolumn{2}{l}{$(instancelabels[p])}")
+        write(tex, " & \\multicolumn{$(relative ? "2" : "1")}{l}{$(instancelabels[p])}")
     end
     write(tex, "\\\\\n")
-    write(tex, "\$n\$ $(repeat(" & $(alglabels[altalg]) time & $(alglabels[cqkalg])", length(inst)))\\\\\n")
+    if relative
+        write(tex, "\$n\$ $(repeat(" & $(alglabels[altalg]) time & $(alglabels[cqkalg])", length(inst)))\\\\\n")
+    else
+        write(tex, "\$n\$ $(repeat(" & $(alglabels[altalg])", length(inst)))\\\\\n")
+    end
     write(tex, "\\hline\n")
     for n in ns
         if (n < minn) || (n > maxn)
@@ -258,7 +268,7 @@ function table_cqk_other(
                 algorithm=cqkalg, instance=p
             )
             Talt = filter_results(
-                res; minn=n, maxn=n, minthreads=1, maxthreads=1,
+                res; minn=n, maxn=n, minthreads=altalgth, maxthreads=altalgth,
                 algorithm=altalg, instance=p
             )
             if isempty(Tcqk) || isempty(Talt)
@@ -269,7 +279,11 @@ function table_cqk_other(
                 alttime = Talt[1,:time][1]
                 altiter = Talt[1,:iter][1]
                 spup = cqktime / alttime
-                write(tex, " & $(fmt_latex(fmt_time, alttime * timefactor)) & $(fmt_lf(spup))")
+                if relative
+                    write(tex, " & $(fmt_lf(1/spup))")
+                else
+                    write(tex, " & $(fmt_latex(fmt_time, alttime * timefactor)) & $(fmt_lf(spup))")
+                end
             end
         end
 
@@ -674,18 +688,23 @@ function generate_all()
     # Random, Table CQK vs commercial solvers (1 thread)
     ###################
     for alg in [
-        "cplex";
-        "gurobi";
+        "cplex (barrier)";
+        "gurobi (barrier)";
         "hexaly";
         "pproj"
-        ]
+        ], th in [1,2,4,8]
+        if (alg == "pproj") && (th > 1)
+            continue
+        end
         table_cqk_other(
             CQK_names,
             "cqk (CPU, FP64)",      # our algorithm
             alg,
             minn = 10^3,
             maxn = (alg == "pproj") ? 10^8 : 10^5,
-            suffix = "_CQKvs$(alg)"
+            suffix = "_CQKvs$(alg)_$(th)th",
+            relative = true,
+            altalgth = th
         )
     end
 
