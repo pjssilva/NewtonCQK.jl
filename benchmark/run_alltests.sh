@@ -45,7 +45,10 @@ export MKL_NUM_THREADS=1
 
 # Random
 for t in $threads; do
-    nice -n 0 $juliacmd --project -t $t random/runtests.jl --continue true --nreps 20 --cuda 64
+    nice -n 0 $juliacmd --project -t $t random/runtests.jl --continue true --nreps 20 --comm_maxn 10000 --cuda 64
+done
+for t in $threads; do
+    nice -n 0 $juliacmd --project -t $t random/runtests.jl --continue true --nreps 1 --comm_maxn 10000000
 done
 
 # Basis pursuit

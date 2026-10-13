@@ -321,8 +321,19 @@ function alltests(cont, nreps, maxn, comm_maxn)
             print_test_header(test.title)
 
             for id in 1:nreps
-                # Create the problem
-                origP = p.generate(p.n)
+                # Create the problem if necessary
+                created = false
+                origP = []
+                for m in test.methods
+                    if !executed(results, p, id, m, nthreads)
+                        origP = p.generate(p.n)
+                        created = true
+                        break
+                    end
+                end
+                if !created
+                    continue
+                end
 
                 # Run methods
                 for m in test.methods
