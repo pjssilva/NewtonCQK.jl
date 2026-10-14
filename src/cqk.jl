@@ -43,12 +43,19 @@ function cqk_init(
     q = zero(T)
     k = 0
 
-    @inbounds for i in (chunk.ystart):(chunk.yfinal)
-        if (P.d[i] <= zero(T)) || (P.b[i] <= zero(T)) || (P.l[i] > P.u[i])
-            # Invalid data
-            return SA[zero(T), T(Inf)]
-        end
+    # Hoisted out of the loop below and kept branch-free: an early `return` inside a
+    # loop silently stops `@simd` from vectorising it.
+    invalid = false
+    @inbounds @simd for i in (chunk.ystart):(chunk.yfinal)
+        invalid |= (P.d[i] <= zero(T)) | (P.b[i] <= zero(T)) | (P.l[i] > P.u[i])
+    end
+    # Invalid data
+    invalid && return SA[zero(T), T(Inf)]
 
+    # `@simd` reassociates the `s` and `q` sums so they vectorise. Its partial
+    # accumulators also make them more accurate than sequential summation, for the
+    # same reason `Base.sum` is pairwise -- so this is not a precision trade-off.
+    @inbounds @simd for i in (chunk.ystart):(chunk.yfinal)
         b_div_d = P.b[i] / P.d[i]
 
         s += P.a[i] * b_div_d
@@ -73,12 +80,19 @@ function cqk_init(
     q = zero(T)
     k = 0
 
-    @inbounds for i in (chunk.ystart):(chunk.yfinal)
-        if (P.d[i] <= zero(T)) || (P.b[i] <= zero(T)) || (P.l[i] > P.u[i])
-            # Invalid data
-            return SA[zero(T), T(Inf), zero(T)]
-        end
+    # Hoisted out of the loop below and kept branch-free: an early `return` inside a
+    # loop silently stops `@simd` from vectorising it.
+    invalid = false
+    @inbounds @simd for i in (chunk.ystart):(chunk.yfinal)
+        invalid |= (P.d[i] <= zero(T)) | (P.b[i] <= zero(T)) | (P.l[i] > P.u[i])
+    end
+    # Invalid data
+    invalid && return SA[zero(T), T(Inf), zero(T)]
 
+    # `@simd` reassociates the `s` and `q` sums so they vectorise. Its partial
+    # accumulators also make them more accurate than sequential summation, for the
+    # same reason `Base.sum` is pairwise -- so this is not a precision trade-off.
+    @inbounds @simd for i in (chunk.ystart):(chunk.yfinal)
         if x0[i] <= P.l[i]
             r_diff -= P.b[i] * P.l[i]
         elseif x0[i] >= P.u[i]
