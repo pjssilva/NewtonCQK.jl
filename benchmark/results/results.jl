@@ -244,16 +244,20 @@ function table_cqk_other(
     ns = sort(Int64.(unique(res_tmp[:,:n])))
 
     tex = open(outfile, "w")
-    write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}l$(repeat(relative ? "ll" : "l", length(inst)))@{\\extracolsep\\fill}}\n")
+    write(tex, "\\begin{tabular*}{\\columnwidth}{@{\\extracolsep\\fill}l$(repeat(relative ? "l" : "ll", length(inst)))@{\\extracolsep\\fill}}\n")
     write(tex, "\\hline\n")
     for p in inst
-        write(tex, " & \\multicolumn{$(relative ? "2" : "1")}{l}{$(instancelabels[p])}")
+        if relative
+            write(tex, " & $(instancelabels[p])")
+        else
+            write(tex, " & \\multicolumn{2}{l}{$(instancelabels[p])}")
+        end
     end
     write(tex, "\\\\\n")
     if relative
-        write(tex, "\$n\$ $(repeat(" & $(alglabels[altalg]) time & $(alglabels[cqkalg])", length(inst)))\\\\\n")
-    else
         write(tex, "\$n\$ $(repeat(" & $(alglabels[altalg])", length(inst)))\\\\\n")
+    else
+        write(tex, "\$n\$ $(repeat(" & $(alglabels[altalg]) time & $(alglabels[cqkalg])", length(inst)))\\\\\n")
     end
     write(tex, "\\hline\n")
     for n in ns
