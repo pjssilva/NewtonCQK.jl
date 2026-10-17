@@ -1,6 +1,9 @@
 .vscode
 *Manifest*.toml
+!benchmark/Manifest.toml
 *.o
 *.so
 *.jld2
 benchmark/results/output
+benchmark/results_rev*
+

@@ -3,7 +3,7 @@
 # Compilation flags
 CC=gcc
 FC=gfortran
-OPTFLAGS=-march=native -O3 -fPIC
+OPTFLAGS=-march=native -O3 -fPIC -ffast-math
 CFLAGS=-ansi -std=c99 -Wall -pedantic $(OPTFLAGS)
 SHAREDFLAGS=-shared
 ifeq ($(CFG),debug)

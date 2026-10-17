@@ -1,16 +1,15 @@
 #!/usr/bin/bash
 
 # Julia executable
-juliacmd="julia-1.10"
-# juliacmd="julia +1.10.9"
+juliacmd="julia +1.13"
 
 # Threads
 threads="1 2 4 8 16 24 48"
 
 # Compile third-party software
 echo "Compiling third-party software..."
-(cd third_party/condat/ && make)
-(cd third_party/quadratic_knapsack_source/lib/ && make)
+(cd third_party/condat/ && make clean && make)
+(cd third_party/quadratic_knapsack_source/lib/ && make clean && make)
 
 # Set 1 thread for BLAS (for third-party C code)
 export OPENBLAS_NUM_THREADS=1
