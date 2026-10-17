@@ -43,8 +43,8 @@ function cqk_init(
     q = zero(T)
     k = 0
 
-    # Hoisted out of the loop below and kept branch-free: an early `return` inside a
-    # loop silently stops `@simd` from vectorising it.
+    # Branch-free and separate from the accumulation loop below: an early `return`
+    # inside a loop prevents `@simd` from vectorising it.
     invalid = false
     @inbounds @simd for i in (chunk.ystart):(chunk.yfinal)
         invalid |= (P.d[i] <= zero(T)) | (P.b[i] <= zero(T)) | (P.l[i] > P.u[i])
@@ -52,9 +52,8 @@ function cqk_init(
     # Invalid data
     invalid && return SA[zero(T), T(Inf)]
 
-    # `@simd` reassociates the `s` and `q` sums so they vectorise. Its partial
-    # accumulators also make them more accurate than sequential summation, for the
-    # same reason `Base.sum` is pairwise -- so this is not a precision trade-off.
+    # `@simd` reassociates the `s` and `q` sums so they vectorise; the partial
+    # accumulators are also more accurate than sequential summation, as in `Base.sum`.
     @inbounds @simd for i in (chunk.ystart):(chunk.yfinal)
         b_div_d = P.b[i] / P.d[i]
 
@@ -80,8 +79,8 @@ function cqk_init(
     q = zero(T)
     k = 0
 
-    # Hoisted out of the loop below and kept branch-free: an early `return` inside a
-    # loop silently stops `@simd` from vectorising it.
+    # Branch-free and separate from the accumulation loop below: an early `return`
+    # inside a loop prevents `@simd` from vectorising it.
     invalid = false
     @inbounds @simd for i in (chunk.ystart):(chunk.yfinal)
         invalid |= (P.d[i] <= zero(T)) | (P.b[i] <= zero(T)) | (P.l[i] > P.u[i])
@@ -89,9 +88,8 @@ function cqk_init(
     # Invalid data
     invalid && return SA[zero(T), T(Inf), zero(T)]
 
-    # `@simd` reassociates the `s` and `q` sums so they vectorise. Its partial
-    # accumulators also make them more accurate than sequential summation, for the
-    # same reason `Base.sum` is pairwise -- so this is not a precision trade-off.
+    # `@simd` reassociates the `s` and `q` sums so they vectorise; the partial
+    # accumulators are also more accurate than sequential summation, as in `Base.sum`.
     @inbounds @simd for i in (chunk.ystart):(chunk.yfinal)
         if x0[i] <= P.l[i]
             r_diff -= P.b[i] * P.l[i]

@@ -6,7 +6,7 @@ Quadratic Knapsack problems.
 module NewtonCQK
 
 using StaticArrays
-using OhMyThreads
+using Polyester
 using LinearAlgebra
 using Statistics
 using SparseArrays
@@ -34,30 +34,25 @@ include("cusimplex.jl")
 include("cul1ball.jl")
 
 # Mapreduce
-# The `::R` annotations are required: `tmapreduce` infers as `Any` and the branch is
-# decided at runtime, so without them this returns `Any` and every caller boxes its
-# result, even for a single chunk.
+# Threaded with Polyester, a lightweight threading system: the chunks are few and each
+# may hold little work, so spawn cost can dominate. `buf` is needed because `@batch`
+# carries no reduction. The `::R` annotations keep the return type concrete -- the
+# branch is resolved at runtime, so without them every caller boxes the result.
 @inline function altmapreduce(f, op, it; init)
     R = Base.promote_op(f, eltype(it))
-    if length(it) == 1
+    nchunks = length(it)
+    if nchunks == 1
         @inbounds return f(it[1])::R
-    else
-        return OhMyThreads.tmapreduce(
-            f, op, it; init=init, scheduler=:static, nchunks=length(it)
-        )::R
     end
-end
-
-# Foreach
-# Both branches must return `nothing`: `tforeach` does, so propagating `f!`'s value
-# instead would make this infer as a `Union` and every caller box the result.
-@inline function altforeach(f!, it)
-    if length(it) == 1
-        @inbounds f!(it[1])
-    else
-        OhMyThreads.tforeach(f!, it; scheduler=:static, nchunks=length(it))
+    buf = Vector{R}(undef, nchunks)
+    Polyester.@batch for i in 1:nchunks
+        @inbounds buf[i] = f(it[i])::R
     end
-    return nothing
+    acc = init
+    @inbounds for i in 1:nchunks
+        acc = op(acc, buf[i])
+    end
+    return acc::R
 end
 
 end
