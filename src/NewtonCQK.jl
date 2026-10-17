@@ -33,11 +33,11 @@ include("cucqk.jl")
 include("cusimplex.jl")
 include("cul1ball.jl")
 
-# Mapreduce Threaded with Polyester, a lightweight threading system: the
-# chunks are few and each maiy holds little work, so spawn cost can dominate.
-# `buf` is needed because `@batch` carries no reduction. The `::R` annotations
-# keep the return type concrete -- the branch is resolved at runtime, so
-# without them every caller boxes the result.
+# Mapreduce
+# Threaded with Polyester, a lightweight threading system: the chunks are few and each
+# may hold little work, so spawn cost can dominate. `buf` is needed because `@batch`
+# carries no reduction. The `::R` annotations keep the return type concrete -- the
+# branch is resolved at runtime, so without them every caller boxes the result.
 @inline function altmapreduce(f, op, it; init)
     R = Base.promote_op(f, eltype(it))
     nchunks = length(it)
