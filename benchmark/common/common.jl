@@ -5,7 +5,6 @@ using LinearAlgebra
 using SparseArrays
 using ArgParse
 using BenchmarkTools
-using OhMyThreads: OhMyThreads
 using DataFrames
 using JLD2
 

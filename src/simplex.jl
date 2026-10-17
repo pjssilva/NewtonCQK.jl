@@ -317,9 +317,13 @@ function simplex_dense_solution!(
     if nchunks == 1
         fill!(sol, zero(T))
     else
-        OhMyThreads.@tasks for i in eachindex(sol)
-            @set nchunks = nchunks
-            @inbounds sol[i] = zero(T)
+        # The chunks' ystart:yfinal partition `sol`, so batching over them splits the
+        # fill according to `nchunks`.
+        Polyester.@batch for ci in eachindex(chunks)
+            c = chunks[ci]
+            @inbounds for i in (c.ystart):(c.yfinal)
+                sol[i] = zero(T)
+            end
         end
     end
     for chunk in chunks
