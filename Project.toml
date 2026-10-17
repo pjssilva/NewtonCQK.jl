@@ -1,6 +1,6 @@
 name = "NewtonCQK"
 uuid = "3a5b082c-bedf-4bf1-a636-adab2d29e4ce"
-version = "0.1.0-DEV"
+version = "0.2.0-DEV"
 authors = ["Paulo J. S. Silva <pjssilva@gmail.com>", "Leonardo D. Secchin <leonardo.secchin@ufes.br>"]
 
 [deps]
