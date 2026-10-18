@@ -33,4 +33,4 @@ $(LIBRARY): $(OBJS)
 	$(CC) $(CFLAGS) $(SHAREDFLAGS) -o $@ $^
 
 clean:
-	rm $(OBJS) $(LIBRARY) 
+	rm -f $(OBJS) $(LIBRARY) 
