@@ -109,6 +109,35 @@ function read_results(filenames)
     return res
 end
 
+# Same rows as the files hold, one per solved problem, with `st` turned into the
+# 0/1 count `filter_results` expects. Keeping `id` is what allows a ratio to be
+# formed within a problem rather than between two medians.
+function read_raw(filenames)
+    files = isa(filenames, String) ? [filenames] : filenames
+    res = DataFrame[]
+    for f in files
+        @assert isfile(f) "$(f) file not found"
+        r = copy(jld2_read("results", f))
+        r.st = Int.(r.st .== :solved)
+        push!(res, r)
+    end
+    return reduce(vcat, res)
+end
+
+# Median over problems of the per-problem time ratio. Instance difficulty is
+# common to numerator and denominator, so forming the ratio first cancels it;
+# taking medians first does not, and leaves each one carrying the full spread.
+# `num` and `den` are keyword sets for `filter_results`, each of which must
+# select at most one row per (Instance, n, id).
+function paired_ratio(raw; num, den)
+    N = filter_results(raw; num...)
+    D = filter_results(raw; den...)
+    (isempty(N) || isempty(D)) && return NaN
+    j = innerjoin(N, D, on=[:Instance, :n, :id], makeunique=true)
+    isempty(j) && return NaN
+    return median(Float64.(j.time) ./ Float64.(j.time_1))
+end
+
 function filter_results(allres;
     instance="", minn=0, maxn=10^20, minthreads=1, maxthreads=500, algorithm=""
 )
@@ -148,6 +177,7 @@ function table_cpu_gpu(
     outfile = joinpath(output_path, "table$(suffix).tex")
 
     res = read_results(filenames)
+    raw = read_raw(filenames)
     res_tmp = filter_results(res; instance=inst[1])
     ns = sort(Int64.(unique(res_tmp[:,:n])))
     threads = sort(Int64.(unique(res_tmp[:,:threads])))
@@ -189,7 +219,10 @@ function table_cpu_gpu(
                     if !isempty(Tgpu)
                         gputime = Tgpu[1,:time][1]
                         gpuiter = Tgpu[1,:iter][1]
-                        spup = cputime / gputime
+                        spup = paired_ratio(raw;
+                            num=(instance=p, minn=n, maxn=n,
+                                 minthreads=th, maxthreads=th, algorithm=cpualg),
+                            den=(instance=p, minn=n, maxn=n, algorithm=gpualg))
                         write(tex, " & $(fmt_lf(spup)) ($(strip(fmt_lf(gpuiter))))")
                     else
                         write(tex, " & --")
@@ -230,6 +263,7 @@ function table_cqk_cms(
     outfile = joinpath(output_path, "table_cqk_cms$(suffix).tex")
 
     res = read_results(filenames)
+    raw = read_raw(filenames)
     res_tmp = filter_results(res; instance=inst[1])
     ns = sort(Int64.(unique(res_tmp[:,:n])))
 
@@ -264,7 +298,11 @@ function table_cqk_cms(
                 cqkiter = Tcqk[1,:iter][1]
                 cmstime = Tcms[1,:time][1]
                 cmsiter = Tcms[1,:iter][1]
-                spup = cqktime / cmstime
+                spup = paired_ratio(raw;
+                    num=(instance=p, minn=n, maxn=n, minthreads=1, maxthreads=1,
+                         algorithm=cqkalg),
+                    den=(instance=p, minn=n, maxn=n, minthreads=1, maxthreads=1,
+                         algorithm=cmsalg))
                 write(tex, " & $(fmt_latex(fmt_time, cmstime * timefactor)) & $(fmt_lf(spup))")
             end
         end
@@ -305,6 +343,7 @@ function plot_speedup(
         outfile = joinpath(output_path, "speedup_$(replace(alg[1], " " => "_"))_$(n).pdf")
     end
     res = read_results(filenames)
+    raw = read_raw(filenames)
 
     # initialize plot
     fig = plot(; title=title,
@@ -349,10 +388,20 @@ function plot_speedup(
         threads = Int64.(sort(unique(T.threads)))
         maxth = max(maxth, length(threads))
 
+        # one paired ratio per thread count, rather than base median / median
+        speedups = [
+            paired_ratio(raw;
+                num=(instance=ii, minn=n, maxn=n, minthreads=1, maxthreads=1,
+                     algorithm=basealg),
+                den=(instance=ii, minn=n, maxn=n, minthreads=t, maxthreads=t,
+                     algorithm=aa))
+            for t in threads
+        ]
+
         # add plot
         fig = plot!(
             1:length(threads),
-            basetime ./ Float64.(T[:, :time]);
+            speedups;
             label=(length(alg) > 1) ? alglabels[alg[k]] : instancelabels[inst[k]],
             xticks=(1:length(threads), threads),
             markershape=:diamond,
