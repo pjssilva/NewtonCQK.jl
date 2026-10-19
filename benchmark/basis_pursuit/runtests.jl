@@ -60,6 +60,7 @@ function solve(
     r = 1.0,
     x0 = Float64[],
     brange = 1:10^10,
+    eps = 1e-4,
     verbose = 1
 )
     @assert r > 0 throw(ArgumentError("r must be positive"))
@@ -150,7 +151,7 @@ function solve(
         (p, z, x0) -> proj!(p, z, y, r),
         l = -Inf, u = Inf,
         callback = isnothing(results) ? nothing : b_callback,
-        maxiters = 10^5, x0 = x0, eps = 1e-4,
+        maxiters = 10^5, x0 = x0, eps = eps,
         verbose = verbose
     )
 
@@ -173,61 +174,51 @@ function executed(results, instance, nthreads)
     return false
 end
 
-function tune_r(instance, A, b; tol = 1e-2)
-    # initial r (we assume that SPG converges)
-    if instance == "SClog11.mat"
-        r = 35
-    elseif instance == "SClog1.mat"
-        r = 6700
-    else
-        r = size(A,2)/10
-    end
-    x, _, _ = solve(
-        instance, A, b, 1;
-        r = r,
-        verbose = -1
-    )
-    res = norm(A*x - b)
-    @printf("r = %d, res = %.6lf\n", r, res)
-    if res > tol
-        # res > tol => r must increase
-        delta = 1
-    else
-        # res < tol => r must decrease
-        delta = -1
-    end
+function tune_r(instance, A, b; spgeps = 1e-4, tolres = Inf, targetnz = -1.0)
+    L = 1
+    U = size(A,2)
 
-    # adjust r
+    r = 1
+    bestr = U
+
+    # adjust r by bissection
     while (true)
-        r += delta
-        oldres = res
-        x, _, flag = solve(
+        r = floor((L + U)/2)
+        x, it, flag = solve(
             instance, A, b, 1;
             r = r,
-            verbose = -1
+            verbose = -1,
+            eps = spgeps
         )
-        if flag != :solved
-            # if SPG fails, we take the last valid r
-            r -= delta
-            break
-        end
         res = norm(A*x - b)
-        if signbit(res - tol) != signbit(oldres - tol)
-            # residual value crossed tol, stop!
-            if res > tol
-                # if the last r makes the residual to be greater than tol,
-                # go back to the previous one
-                r -= delta
-            end
+        nz = count(x .!= 0.0)
+        percnz = 100 * nz/max(1,length(x))
+        if (res > tolres) || (percnz < targetnz)
+            # r must increase
+            L = r
+        else
+            # Store the smallest valid r found so far. This because 'res', as a
+            # function of x=SPG(), may fluctuate unpredictably
+            bestr = min(r, bestr)
+            # r must decrease
+            U = r
+        end
+        if flag != :solved
+            # if SPG fails!
+            @warn "SPG fails"
+        end
+        @printf("r = %d, res = %.6lf, nz = %d (%.3lf %%), SPG iter = %d\n",
+                r, res, nz, percnz, it)
+
+        if U - L <= 1
             break
         end
-        @printf("r = %d, res = %.6lf\n", r, res)
     end
 
     # save r
     jldsave(joinpath(projectpath, "basis_pursuit/$(instance)_r.jld2"); r)
 
-    return r
+    return (bestr < size(A,2)) ? bestr : r
 end
 
 # All basis pursuit tests
@@ -236,7 +227,13 @@ function alltests(cont)
 
     # Matrices
     matrices_path = joinpath(projectpath, "basis_pursuit", "SC_matrices")
-    matrices = ["SClog1.mat"; "SClog11.mat"]
+    matrices = ["SC1.mat"; "SC11.mat"; "SC13.mat"; "SC20.mat"]
+    par = Dict(
+        "SC1.mat" => (spgeps = 1e-4, tolres = 1e-2, targetnz = -1.0),
+        "SC11.mat" => (spgeps = 1e-4, tolres = 1e-2, targetnz = -1.0),
+        "SC13.mat" => (spgeps = 1e-2, tolres = Inf, targetnz = 1.1),
+        "SC20.mat" => (spgeps = 1e-2, tolres = Inf, targetnz = 1.1)
+    )
 
     output = joinpath(projectpath, "results/results_basis_pursuit.jld2")
 
@@ -263,7 +260,7 @@ function alltests(cont)
 
     for mat in matrices
         if !executed(results, mat, nthreads)
-            println("Instance $(mat), threads = $(nthreads)")
+            println("Instance $(mat), num threads = $(nthreads)")
 
             # read matrix
             A, b = read_problem(joinpath(matrices_path, mat))
@@ -276,7 +273,12 @@ function alltests(cont)
             r = jld2_read("r", joinpath(projectpath, "basis_pursuit/$(mat)_r.jld2"))
             if isnothing(r)
                 println("Tuning r...")
-                r = tune_r(mat, A, b)
+                r = tune_r(
+                    mat, A, b,
+                    spgeps = par[mat].spgeps,
+                    tolres = par[mat].tolres,
+                    targetnz = par[mat].targetnz
+                )
                 @printf("r = %d\n", r)
             else
                 @printf("r = %d (read from file)\n", r)
@@ -286,11 +288,9 @@ function alltests(cont)
             x, it, flag = solve(
                 mat, A, b, nthreads;
                 r = r,
+                eps = par[mat].spgeps,
                 verbose = 0
             )
-
-            nonzeros = count(x .!= 0.0)
-            @printf("# nonzeros = %d (%.3lf %%)\n", nonzeros, 100 * nonzeros/size(A,2))
             if flag != :solved
                 println("SPG fails.")
                 println('-'^98)
@@ -306,7 +306,9 @@ function alltests(cont)
             _, _, flag = solve(
                 mat, A, b, nthreads;
                 results = results,
-                r = r, brange = it_range,
+                r = r,
+                eps = par[mat].spgeps,
+                brange = it_range,
                 verbose = 0
             )
 
