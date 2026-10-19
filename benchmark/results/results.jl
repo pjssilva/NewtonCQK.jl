@@ -217,7 +217,6 @@ function table_cpu_gpu(
                     cpuiter = Tcpu[1,:iter][1]
                     write(tex, " & $(fmt_latex(fmt_time, cputime * timefactor)) ($(strip(fmt_lf(cpuiter))))")
                     if !isempty(Tgpu)
-                        gputime = Tgpu[1,:time][1]
                         gpuiter = Tgpu[1,:iter][1]
                         spup = paired_ratio(raw;
                             num=(instance=p, minn=n, maxn=n,
@@ -294,10 +293,7 @@ function table_cqk_cms(
             if isempty(Tcqk) || isempty(Tcms)
                 continue
             else
-                cqktime = Tcqk[1,:time][1]
-                cqkiter = Tcqk[1,:iter][1]
                 cmstime = Tcms[1,:time][1]
-                cmsiter = Tcms[1,:iter][1]
                 spup = paired_ratio(raw;
                     num=(instance=p, minn=n, maxn=n, minthreads=1, maxthreads=1,
                          algorithm=cqkalg),
