@@ -690,7 +690,7 @@ function generate_all()
     ###################
     # Basis pursuit denoising
     ###################
-    for n in [1;11]
+    for n in [1;11;13;20]
         # Relative performance, iterations and #fixed vars per thread
         for t in [1]#;2;4;8;16;24;48]  # uncomment to generate figures for multiple threads
             for m in [:time; :nfixed]#; :iter]  # measures
@@ -704,7 +704,7 @@ function generate_all()
                 spg_plots(
                     "l1ball (bp)",
                     ["l1ball (bp) x0"; "P Condat (l1ball)"],
-                    "SClog$(n).mat",
+                    "SC$(n).mat",
                     miniter=3,
                     title=title,
                     threads=[t],
@@ -720,7 +720,7 @@ function generate_all()
         spg_plots(
             "l1ball (bp) x0",
             ["l1ball (bp) x0"],
-            "SClog$(n).mat",
+            "SC$(n).mat",
             miniter=3,
             title=latexstring("\$\\texttt{NewtonCQK.jl}\$ on SC$(n)"),
             threads=[1;2;4;8;16;24;48],
