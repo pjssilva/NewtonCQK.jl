@@ -31,5 +31,10 @@ for t in $threads; do
     nice -n 0 $juliacmd --project -t $t svm/runtests.jl --continue true
 done
 
+# Condat's method tracking indices of the free variables (single thread)
+nice -n 0 $juliacmd --project condat_idx/check.jl
+nice -n 0 $juliacmd --project -t 1 condat_idx/runtests.jl --nreps 20
+
 # Results
 nice -n 0 $juliacmd --project results/results.jl
+nice -n 0 $juliacmd --project condat_idx/results.jl

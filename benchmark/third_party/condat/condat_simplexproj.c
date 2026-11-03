@@ -637,3 +637,101 @@ void simplexproj_Condat(datatype *y, datatype *x,
 	if (x == y)
 		free(aux0);
 }
+
+/* ------------------------------------------------------------------------
+Index-based variant of simplexproj_Condat, written for the NewtonCQK.jl
+experiments (not part of Condat's original code).
+
+The algorithm and its arithmetic are exactly those of simplexproj_Condat,
+but the candidate free variables are stored as indices into y instead of
+copies of their values. Hence, at the end, the solution can be built from
+the few free indices, without a full pass over y.
+
+condat_idx_core runs the algorithm using idx (room for length entries) as
+workspace. On return, *tauout is the final threshold and the indices of the
+free variables are idx[*first], ..., idx[*first + count - 1], in increasing
+order, where count is the return value. */
+static int condat_idx_core(const datatype *y, unsigned int *idx,
+						   const unsigned int length, const double a,
+						   double *tauout, int *first)
+{
+	unsigned int *aux = idx;
+	unsigned int *aux0 = aux;
+	int auxlength = 1;
+	int auxlengthold = -1;
+	double tau = y[*aux = 0] - a;
+	int i = 1;
+	for (; i < length; i++)
+		if (y[i] > tau)
+		{
+			aux[auxlength] = i;
+			if ((tau += (y[i] - tau) / (auxlength - auxlengthold)) <= y[i] - a)
+			{
+				tau = y[i] - a;
+				auxlengthold = auxlength - 1;
+			}
+			auxlength++;
+		}
+	if (auxlengthold >= 0)
+	{
+		auxlength -= ++auxlengthold;
+		aux += auxlengthold;
+		while (--auxlengthold >= 0)
+			if (y[aux0[auxlengthold]] > tau)
+				tau += (y[*(--aux) = aux0[auxlengthold]] - tau) / (++auxlength);
+	}
+	do
+	{
+		auxlengthold = auxlength - 1;
+		for (i = auxlength = 0; i <= auxlengthold; i++)
+			if (y[aux[i]] > tau)
+				aux[auxlength++] = aux[i];
+			else
+				tau += (tau - y[aux[i]]) / (auxlengthold - i + auxlength);
+	} while (auxlength <= auxlengthold);
+	*tauout = tau;
+	*first = aux - aux0;
+	return auxlength;
+}
+
+/* Dense output, same interface as simplexproj_Condat. As in the original,
+when x != y the workspace (here, the indices) lives inside x. The few free
+entries are saved before x is zeroed. */
+void simplexproj_Condat_idx(datatype *y, datatype *x,
+							const unsigned int length, const double a)
+{
+	unsigned int *idx = (x == y ? (unsigned int *)malloc(length * sizeof(unsigned int))
+								: (unsigned int *)x);
+	double tau;
+	int first, i;
+	int count = condat_idx_core(y, idx, length, a, &tau, &first);
+	unsigned int *freeidx = (unsigned int *)malloc(count * sizeof(unsigned int));
+	datatype *freeval = (datatype *)malloc(count * sizeof(datatype));
+	for (i = 0; i < count; i++)
+	{
+		freeidx[i] = idx[first + i];
+		freeval[i] = y[freeidx[i]] - tau;
+	}
+	memset(x, 0, length * sizeof(datatype));
+	for (i = 0; i < count; i++)
+		x[freeidx[i]] = freeval[i];
+	free(freeidx);
+	free(freeval);
+	if (x == y)
+		free(idx);
+}
+
+/* Sparse output: returns the number of free variables, stores their
+(0-based) indices in idx[0], ..., idx[count - 1], in increasing order, and
+the threshold in *tau. The solution is x[idx[k]] = y[idx[k]] - *tau, all
+other entries being zero. idx must have room for length entries. */
+int simplexproj_Condat_idx_free(datatype *y, unsigned int *idx,
+								const unsigned int length, const double a,
+								double *tau)
+{
+	int first;
+	int count = condat_idx_core(y, idx, length, a, tau, &first);
+	if (first > 0)
+		memmove(idx, idx + first, count * sizeof(unsigned int));
+	return count;
+}
